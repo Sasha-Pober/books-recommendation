@@ -1,0 +1,43 @@
+@host = http://localhost:5292
+
+### Health
+GET {{host}}/health
+
+### Search books
+GET {{host}}/api/books?search=dune&page=1&pageSize=10
+
+### Genres
+GET {{host}}/api/genres
+
+### Create user (temporary, until auth is added)
+POST {{host}}/api/users
+Content-Type: application/json
+
+{
+  "email": "reader@example.com",
+  "displayName": "Reader"
+}
+
+### Record interactions (replace ids)
+POST {{host}}/api/interactions
+Content-Type: application/json
+
+{
+  "events": [
+    {
+      "userId": "00000000-0000-0000-0000-000000000000",
+      "sessionId": "session-1",
+      "bookId": "00000000-0000-0000-0000-000000000000",
+      "type": "Purchase"
+    }
+  ]
+}
+
+### Popular books (anonymous)
+GET {{host}}/api/recommendations/popular?count=5
+
+### Personalized recommendations (replace id)
+GET {{host}}/api/recommendations/users/00000000-0000-0000-0000-000000000000?count=10
+
+### Similar books (replace id)
+GET {{host}}/api/recommendations/books/00000000-0000-0000-0000-000000000000/similar?count=5

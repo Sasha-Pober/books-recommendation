@@ -1,0 +1,25 @@
+using BookStore.Application.Authors;
+using BookStore.Application.Common.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace BookStore.Api.Controllers;
+
+[ApiController]
+[Route("api/authors")]
+public sealed class AuthorsController(IAuthorService authors) : ControllerBase
+{
+    [HttpGet]
+    public Task<PagedResult<AuthorDto>> GetAll([FromQuery] PageQuery page, CancellationToken cancellationToken) =>
+        authors.GetAllAsync(page, cancellationToken);
+
+    [HttpGet("{id:guid}")]
+    public Task<AuthorDto> GetById(Guid id, CancellationToken cancellationToken) =>
+        authors.GetByIdAsync(id, cancellationToken);
+
+    [HttpPost]
+    public async Task<ActionResult<AuthorDto>> Create(CreateAuthorRequest request, CancellationToken cancellationToken)
+    {
+        var author = await authors.CreateAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = author.Id }, author);
+    }
+}
