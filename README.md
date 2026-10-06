@@ -38,18 +38,32 @@ Implicit feedback (`View`, `Click`, `AddToWishlist`, `AddToCart`, `Purchase`) is
 
 ## Running locally
 
-Requirements: .NET 10 SDK, Docker.
+Requirements: Docker. The .NET 10 SDK is needed only to run the API outside Docker.
+
+### Everything in Docker
 
 ```bash
-docker compose up -d postgres          # start PostgreSQL
-cd backend
-dotnet run --project src/BookStore.Api # applies migrations and seeds a demo catalog in Development
+docker compose up -d --build   # PostgreSQL + API
 ```
+
+The API container runs in `Development` mode. On startup it applies migrations and seeds a demo catalog. Database credentials come from `.env` (copy `.env.example`), or default to `bookstore`.
+
+### API from the IDE / CLI, database in Docker
+
+```bash
+docker compose up -d postgres
+cd backend
+dotnet run --project src/BookStore.Api
+```
+
+Both ways expose the API on port 5292:
 
 - API reference (Scalar): http://localhost:5292/scalar
 - OpenAPI document: http://localhost:5292/openapi/v1.json
 - Health: http://localhost:5292/health
 - Sample requests: `backend/src/BookStore.Api/BookStore.Api.http`
+
+Stop the `api` container before running the API locally, since both use port 5292. To reset the database: `docker compose down -v`.
 
 ### Tests
 

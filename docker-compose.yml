@@ -1,4 +1,4 @@
-# Local development infrastructure. Services (API, ML service, frontend)
+# Local development environment. Services (ML service, frontend)
 # will be added here as they are implemented.
 services:
   postgres:
@@ -17,6 +17,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  api:
+    build:
+      context: ./backend
+    container_name: bookstore-api
+    environment:
+      # Development: applies migrations + seeds demo data on startup and serves the Scalar UI.
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__BookStore: >-
+        Host=postgres;Port=5432;Database=${POSTGRES_DB:-bookstore};Username=${POSTGRES_USER:-bookstore};Password=${POSTGRES_PASSWORD:-bookstore}
+    ports:
+      - "5292:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres-data:
