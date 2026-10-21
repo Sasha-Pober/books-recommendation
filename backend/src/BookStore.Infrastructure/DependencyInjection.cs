@@ -1,5 +1,6 @@
-using BookStore.Application.Abstractions;
+using BookStore.Domain.Repositories;
 using BookStore.Infrastructure.Persistence;
+using BookStore.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +21,14 @@ public static class DependencyInjection
             .UseNpgsql(connectionString)
             .UseSnakeCaseNamingConvention());
 
-        services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<BookStoreDbContext>());
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<BookStoreDbContext>());
+        services.AddScoped<IBookRepository, BookRepository>();
+        services.AddScoped<IAuthorRepository, AuthorRepository>();
+        services.AddScoped<IGenreRepository, GenreRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRatingRepository, RatingRepository>();
+        services.AddScoped<IInteractionRepository, InteractionRepository>();
+
         services.AddScoped<DatabaseInitializer>();
 
         return services;

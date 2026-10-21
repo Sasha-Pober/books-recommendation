@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using BookStore.Domain.Enums;
 
-namespace BookStore.Application.Interactions;
+namespace BookStore.Presentation.Interactions;
 
 public sealed record InteractionEvent
 {

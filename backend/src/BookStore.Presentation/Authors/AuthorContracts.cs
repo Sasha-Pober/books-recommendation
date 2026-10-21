@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace BookStore.Application.Authors;
+namespace BookStore.Presentation.Authors;
 
 public sealed record AuthorDto(Guid Id, string FullName, string? Bio);
 

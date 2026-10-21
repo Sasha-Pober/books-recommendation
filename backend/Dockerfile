@@ -4,7 +4,8 @@ WORKDIR /src
 
 # Restore first, in its own layer, so it is cached until a project file changes.
 COPY src/BookStore.Domain/BookStore.Domain.csproj src/BookStore.Domain/
-COPY src/BookStore.Application/BookStore.Application.csproj src/BookStore.Application/
+COPY src/BookStore.Presentation/BookStore.Presentation.csproj src/BookStore.Presentation/
+COPY src/BookStore.Services/BookStore.Services.csproj src/BookStore.Services/
 COPY src/BookStore.Infrastructure/BookStore.Infrastructure.csproj src/BookStore.Infrastructure/
 COPY src/BookStore.Api/BookStore.Api.csproj src/BookStore.Api/
 RUN dotnet restore src/BookStore.Api/BookStore.Api.csproj

@@ -1,10 +1,10 @@
-namespace BookStore.Application.Abstractions;
+using BookStore.Domain.Recommendations;
 
-public sealed record ScoredBook(Guid BookId, double Score);
+namespace BookStore.Domain.Services;
 
 /// <summary>
 /// Produces ranked book ids. Implementations: the built-in baseline (popularity / content)
-/// and, later, a client of the Python neural-network service.
+/// and, later, a client of the Python recommendation service.
 /// </summary>
 public interface IRecommendationEngine
 {

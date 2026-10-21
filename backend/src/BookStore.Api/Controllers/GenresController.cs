@@ -1,4 +1,5 @@
-using BookStore.Application.Genres;
+using BookStore.Presentation.Genres;
+using BookStore.Services.Genres;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookStore.Api.Controllers;

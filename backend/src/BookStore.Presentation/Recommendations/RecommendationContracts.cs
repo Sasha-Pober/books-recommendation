@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
-using BookStore.Application.Books;
+using BookStore.Presentation.Books;
 
-namespace BookStore.Application.Recommendations;
+namespace BookStore.Presentation.Recommendations;
 
 public sealed record RecommendationQuery
 {

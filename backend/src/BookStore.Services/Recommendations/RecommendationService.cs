@@ -1,12 +1,13 @@
-using BookStore.Application.Abstractions;
-using BookStore.Application.Books;
-using BookStore.Application.Common.Exceptions;
 using BookStore.Domain.Entities;
-using BookStore.Domain.Enums;
-using Microsoft.EntityFrameworkCore;
+using BookStore.Domain.Exceptions;
+using BookStore.Domain.Recommendations;
+using BookStore.Domain.Repositories;
+using BookStore.Domain.Services;
+using BookStore.Presentation.Recommendations;
+using BookStore.Services.Books;
 using Microsoft.Extensions.Logging;
 
-namespace BookStore.Application.Recommendations;
+namespace BookStore.Services.Recommendations;
 
 public interface IRecommendationService
 {
@@ -22,7 +23,10 @@ public interface IRecommendationService
 /// enriches ids with book data and falls back to the baseline if the primary engine fails.
 /// </summary>
 internal sealed class RecommendationService(
-    IApplicationDbContext db,
+    IBookRepository books,
+    IUserRepository users,
+    IRatingRepository ratings,
+    IInteractionRepository interactions,
     IRecommendationEngine engine,
     BaselineRecommendationEngine fallback,
     ILogger<RecommendationService> logger) : IRecommendationService
@@ -32,17 +36,15 @@ internal sealed class RecommendationService(
 
     public async Task<RecommendationListDto> GetForUserAsync(Guid userId, int count, CancellationToken cancellationToken)
     {
-        if (!await db.Users.AnyAsync(u => u.Id == userId, cancellationToken))
+        if (!await users.ExistsAsync(userId, cancellationToken))
         {
             throw new NotFoundException(nameof(User), userId);
         }
 
         // Don't recommend books the user already bought or rated.
-        var purchased = db.Interactions
-            .Where(i => i.UserId == userId && i.Type == InteractionType.Purchase)
-            .Select(i => i.BookId);
-        var rated = db.Ratings.Where(r => r.UserId == userId).Select(r => r.BookId);
-        var exclude = await purchased.Union(rated).ToListAsync(cancellationToken);
+        var purchased = await interactions.GetPurchasedBookIdsAsync(userId, cancellationToken);
+        var rated = await ratings.GetRatedBookIdsAsync(userId, cancellationToken);
+        var exclude = purchased.Union(rated).ToList();
 
         return await RecommendAsync(
             (e, ct) => e.RecommendForUserAsync(userId, count * CandidateMultiplier, exclude, ct),
@@ -58,7 +60,7 @@ internal sealed class RecommendationService(
 
     public async Task<RecommendationListDto> GetSimilarAsync(Guid bookId, int count, CancellationToken cancellationToken)
     {
-        if (!await db.Books.AnyAsync(b => b.Id == bookId, cancellationToken))
+        if (!await books.ExistsAsync(bookId, cancellationToken))
         {
             throw new NotFoundException(nameof(Book), bookId);
         }
@@ -77,18 +79,18 @@ internal sealed class RecommendationService(
         var (source, candidates) = await QueryWithFallbackAsync(query, cancellationToken);
 
         var ids = candidates.Select(c => c.BookId).Distinct().ToList();
-        var books = await db.Books
-            .AsNoTracking()
-            .Where(b => ids.Contains(b.Id) && b.Stock > 0)
-            .Select(BookMappings.ToDto)
-            .ToDictionaryAsync(b => b.Id, cancellationToken);
+        var inStock = (await books.GetInStockByIdsAsync(ids, cancellationToken)).ToDictionary(b => b.Id);
 
         // Keep the engine's ranking order.
-        var items = candidates
-            .Where(c => books.ContainsKey(c.BookId))
+        var ranked = candidates
+            .Where(c => inStock.ContainsKey(c.BookId))
             .DistinctBy(c => c.BookId)
             .Take(count)
-            .Select(c => new RecommendedBookDto(books[c.BookId], c.Score))
+            .ToList();
+
+        var summaries = await ratings.GetSummariesAsync(ranked.Select(c => c.BookId).ToList(), cancellationToken);
+        var items = ranked
+            .Select(c => new RecommendedBookDto(inStock[c.BookId].ToDto(summaries.For(c.BookId)), c.Score))
             .ToList();
 
         return new RecommendationListDto(Guid.CreateVersion7(), source, items);

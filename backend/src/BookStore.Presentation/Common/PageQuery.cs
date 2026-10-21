@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace BookStore.Application.Common.Models;
+namespace BookStore.Presentation.Common;
 
 public record PageQuery
 {

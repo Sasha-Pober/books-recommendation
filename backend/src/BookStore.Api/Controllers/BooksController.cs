@@ -1,5 +1,6 @@
-using BookStore.Application.Books;
-using BookStore.Application.Common.Models;
+using BookStore.Presentation.Books;
+using BookStore.Presentation.Common;
+using BookStore.Services.Books;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookStore.Api.Controllers;

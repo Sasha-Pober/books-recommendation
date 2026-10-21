@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 using BookStore.Api.Infrastructure;
-using BookStore.Application;
 using BookStore.Infrastructure;
 using BookStore.Infrastructure.Persistence;
+using BookStore.Services;
 using Scalar.AspNetCore;
 
 const string FrontendCorsPolicy = "Frontend";
@@ -10,7 +10,7 @@ const string FrontendCorsPolicy = "Frontend";
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
-    .AddApplication()
+    .AddServices()
     .AddInfrastructure(builder.Configuration);
 
 builder.Services

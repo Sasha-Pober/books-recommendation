@@ -1,4 +1,5 @@
-using BookStore.Application.Interactions;
+using BookStore.Presentation.Interactions;
+using BookStore.Services.Interactions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookStore.Api.Controllers;

@@ -1,10 +1,10 @@
-using BookStore.Application.Abstractions;
-using BookStore.Application.Common.Exceptions;
-using BookStore.Application.Common.Models;
 using BookStore.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+using BookStore.Domain.Exceptions;
+using BookStore.Domain.Repositories;
+using BookStore.Presentation.Authors;
+using BookStore.Presentation.Common;
 
-namespace BookStore.Application.Authors;
+namespace BookStore.Services.Authors;
 
 public interface IAuthorService
 {
@@ -15,29 +15,32 @@ public interface IAuthorService
     Task<AuthorDto> CreateAsync(CreateAuthorRequest request, CancellationToken cancellationToken);
 }
 
-internal sealed class AuthorService(IApplicationDbContext db) : IAuthorService
+internal sealed class AuthorService(IAuthorRepository authors, IUnitOfWork unitOfWork) : IAuthorService
 {
-    public Task<PagedResult<AuthorDto>> GetAllAsync(PageQuery page, CancellationToken cancellationToken) =>
-        db.Authors
-            .AsNoTracking()
-            .OrderBy(a => a.FullName)
-            .Select(a => new AuthorDto(a.Id, a.FullName, a.Bio))
-            .ToPagedResultAsync(page, cancellationToken);
+    public async Task<PagedResult<AuthorDto>> GetAllAsync(PageQuery page, CancellationToken cancellationToken)
+    {
+        var result = await authors.GetPageAsync(page.Page, page.PageSize, cancellationToken);
 
-    public async Task<AuthorDto> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        await db.Authors
-            .AsNoTracking()
-            .Where(a => a.Id == id)
-            .Select(a => new AuthorDto(a.Id, a.FullName, a.Bio))
-            .FirstOrDefaultAsync(cancellationToken)
-        ?? throw new NotFoundException(nameof(Author), id);
+        return new PagedResult<AuthorDto>(
+            result.Items.Select(ToDto).ToList(), result.Page, result.PageSize, result.TotalCount);
+    }
+
+    public async Task<AuthorDto> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var author = await authors.GetByIdAsync(id, cancellationToken)
+                     ?? throw new NotFoundException(nameof(Author), id);
+
+        return ToDto(author);
+    }
 
     public async Task<AuthorDto> CreateAsync(CreateAuthorRequest request, CancellationToken cancellationToken)
     {
         var author = new Author { FullName = request.FullName.Trim(), Bio = request.Bio };
-        db.Authors.Add(author);
-        await db.SaveChangesAsync(cancellationToken);
+        authors.Add(author);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new AuthorDto(author.Id, author.FullName, author.Bio);
+        return ToDto(author);
     }
+
+    private static AuthorDto ToDto(Author author) => new(author.Id, author.FullName, author.Bio);
 }

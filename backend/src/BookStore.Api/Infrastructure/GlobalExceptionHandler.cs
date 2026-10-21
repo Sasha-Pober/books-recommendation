@@ -1,4 +1,4 @@
-using BookStore.Application.Common.Exceptions;
+using BookStore.Domain.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 

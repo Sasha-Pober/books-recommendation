@@ -10,18 +10,26 @@ A book store with a neural-network-based recommendation system.
 
 ## Backend architecture
 
-Clean Architecture; dependencies point inward (`Api → Infrastructure → Application → Domain`).
+Onion architecture: every layer depends only on layers closer to the core, and `Domain` depends on nothing.
+
+```
+Api ──▶ Services ──▶ Presentation ──▶ Domain
+ └────▶ Infrastructure ─────────────▶ Domain
+```
 
 ```
 backend/
 ├── src/
-│   ├── BookStore.Domain/          entities (Book, Author, Genre, User, Rating, Interaction), no dependencies
-│   ├── BookStore.Application/     use-case services, DTOs, abstractions (IApplicationDbContext, IRecommendationEngine)
-│   ├── BookStore.Infrastructure/  EF Core + PostgreSQL, migrations, seeding; later: ML-service client, message broker
-│   └── BookStore.Api/             controllers, error handling (ProblemDetails), OpenAPI, health checks
+│   ├── BookStore.Domain/          entities, repository interfaces, IUnitOfWork, IRecommendationEngine, business exceptions
+│   ├── BookStore.Presentation/    DTOs and request/response contracts
+│   ├── BookStore.Services/        business logic (service interfaces + implementations), baseline recommendation engine
+│   ├── BookStore.Infrastructure/  EF Core + PostgreSQL: DbContext (unit of work), repositories, migrations, seeding
+│   └── BookStore.Api/             controllers, error handling (ProblemDetails), OpenAPI, health checks, DI composition
 └── tests/
-    └── BookStore.UnitTests/
+    └── BookStore.UnitTests/       service tests (NSubstitute mocks) and repository query tests
 ```
+
+`Services` has no EF Core dependency; it works only through the repository interfaces from `Domain`.
 
 ### Recommendations
 

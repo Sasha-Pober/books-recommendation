@@ -1,42 +1,38 @@
-using BookStore.Application.Abstractions;
-using BookStore.Application.Common.Exceptions;
 using BookStore.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+using BookStore.Domain.Exceptions;
+using BookStore.Domain.Repositories;
+using BookStore.Presentation.Interactions;
 
-namespace BookStore.Application.Interactions;
+namespace BookStore.Services.Interactions;
 
 public interface IInteractionService
 {
     Task RecordAsync(RecordInteractionsRequest request, CancellationToken cancellationToken);
 }
 
-internal sealed class InteractionService(IApplicationDbContext db) : IInteractionService
+internal sealed class InteractionService(
+    IBookRepository books,
+    IUserRepository users,
+    IInteractionRepository interactions,
+    IUnitOfWork unitOfWork) : IInteractionService
 {
     public async Task RecordAsync(RecordInteractionsRequest request, CancellationToken cancellationToken)
     {
         var bookIds = request.Events.Select(e => e.BookId).Distinct().ToList();
-        var knownBooks = await db.Books
-            .Where(b => bookIds.Contains(b.Id))
-            .Select(b => b.Id)
-            .ToListAsync(cancellationToken);
-        var unknownBooks = bookIds.Except(knownBooks).ToList();
+        var unknownBooks = bookIds.Except(await books.GetExistingIdsAsync(bookIds, cancellationToken)).ToList();
         if (unknownBooks.Count > 0)
         {
             throw new ValidationException($"Unknown book ids: {string.Join(", ", unknownBooks)}.");
         }
 
         var userIds = request.Events.Where(e => e.UserId.HasValue).Select(e => e.UserId!.Value).Distinct().ToList();
-        var knownUsers = await db.Users
-            .Where(u => userIds.Contains(u.Id))
-            .Select(u => u.Id)
-            .ToListAsync(cancellationToken);
-        var unknownUsers = userIds.Except(knownUsers).ToList();
+        var unknownUsers = userIds.Except(await users.GetExistingIdsAsync(userIds, cancellationToken)).ToList();
         if (unknownUsers.Count > 0)
         {
             throw new ValidationException($"Unknown user ids: {string.Join(", ", unknownUsers)}.");
         }
 
-        db.Interactions.AddRange(request.Events.Select(e => new Interaction
+        interactions.AddRange(request.Events.Select(e => new Interaction
         {
             UserId = e.UserId,
             SessionId = e.SessionId,
@@ -45,9 +41,6 @@ internal sealed class InteractionService(IApplicationDbContext db) : IInteractio
             RecommendationId = e.RecommendationId,
         }));
 
-        await db.SaveChangesAsync(cancellationToken);
-
-        // Next step: publish the events to the message broker so the ML service
-        // can update the user's real-time features.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

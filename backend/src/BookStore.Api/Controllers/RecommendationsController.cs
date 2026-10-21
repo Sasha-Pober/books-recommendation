@@ -1,4 +1,5 @@
-using BookStore.Application.Recommendations;
+using BookStore.Presentation.Recommendations;
+using BookStore.Services.Recommendations;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookStore.Api.Controllers;

@@ -1,10 +1,10 @@
 using System.ComponentModel.DataAnnotations;
-using BookStore.Application.Authors;
-using BookStore.Application.Common.Models;
-using BookStore.Application.Genres;
 using BookStore.Domain.Entities;
+using BookStore.Presentation.Authors;
+using BookStore.Presentation.Common;
+using BookStore.Presentation.Genres;
 
-namespace BookStore.Application.Books;
+namespace BookStore.Presentation.Books;
 
 public sealed record BookDto(
     Guid Id,

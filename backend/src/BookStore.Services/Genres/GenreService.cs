@@ -1,9 +1,9 @@
-using BookStore.Application.Abstractions;
-using BookStore.Application.Common.Exceptions;
 using BookStore.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+using BookStore.Domain.Exceptions;
+using BookStore.Domain.Repositories;
+using BookStore.Presentation.Genres;
 
-namespace BookStore.Application.Genres;
+namespace BookStore.Services.Genres;
 
 public interface IGenreService
 {
@@ -12,26 +12,25 @@ public interface IGenreService
     Task<GenreDto> CreateAsync(CreateGenreRequest request, CancellationToken cancellationToken);
 }
 
-internal sealed class GenreService(IApplicationDbContext db) : IGenreService
+internal sealed class GenreService(IGenreRepository genres, IUnitOfWork unitOfWork) : IGenreService
 {
-    public async Task<IReadOnlyList<GenreDto>> GetAllAsync(CancellationToken cancellationToken) =>
-        await db.Genres
-            .AsNoTracking()
-            .OrderBy(g => g.Name)
-            .Select(g => new GenreDto(g.Id, g.Name))
-            .ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<GenreDto>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        var all = await genres.GetAllAsync(cancellationToken);
+        return all.Select(g => new GenreDto(g.Id, g.Name)).ToList();
+    }
 
     public async Task<GenreDto> CreateAsync(CreateGenreRequest request, CancellationToken cancellationToken)
     {
         var name = request.Name.Trim();
-        if (await db.Genres.AnyAsync(g => g.Name == name, cancellationToken))
+        if (await genres.ExistsByNameAsync(name, cancellationToken))
         {
             throw new ConflictException($"Genre '{name}' already exists.");
         }
 
         var genre = new Genre { Name = name };
-        db.Genres.Add(genre);
-        await db.SaveChangesAsync(cancellationToken);
+        genres.Add(genre);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new GenreDto(genre.Id, genre.Name);
     }

@@ -1,10 +1,10 @@
-using BookStore.Application.Abstractions;
-using BookStore.Application.Common.Exceptions;
-using BookStore.Application.Common.Models;
 using BookStore.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+using BookStore.Domain.Exceptions;
+using BookStore.Domain.Repositories;
+using BookStore.Presentation.Books;
+using BookStore.Presentation.Common;
 
-namespace BookStore.Application.Books;
+namespace BookStore.Services.Books;
 
 public interface IBookService
 {
@@ -21,95 +21,83 @@ public interface IBookService
     Task RateAsync(Guid bookId, RateBookRequest request, CancellationToken cancellationToken);
 }
 
-internal sealed class BookService(IApplicationDbContext db) : IBookService
+internal sealed class BookService(
+    IBookRepository books,
+    IAuthorRepository authors,
+    IGenreRepository genres,
+    IUserRepository users,
+    IRatingRepository ratings,
+    IUnitOfWork unitOfWork) : IBookService
 {
-    public Task<PagedResult<BookDto>> SearchAsync(BookQuery query, CancellationToken cancellationToken)
+    public async Task<PagedResult<BookDto>> SearchAsync(BookQuery query, CancellationToken cancellationToken)
     {
-        var books = db.Books.AsNoTracking();
+        var filter = new BookFilter(query.Search?.Trim(), query.GenreId, query.AuthorId, query.Page, query.PageSize);
+        var page = await books.SearchAsync(filter, cancellationToken);
+        var summaries = await ratings.GetSummariesAsync(page.Items.Select(b => b.Id).ToList(), cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var term = query.Search.Trim().ToLower();
-            books = books.Where(b =>
-                b.Title.ToLower().Contains(term) || b.Author.FullName.ToLower().Contains(term));
-        }
-
-        if (query.GenreId is { } genreId)
-        {
-            books = books.Where(b => b.Genres.Any(g => g.Id == genreId));
-        }
-
-        if (query.AuthorId is { } authorId)
-        {
-            books = books.Where(b => b.AuthorId == authorId);
-        }
-
-        return books
-            .OrderBy(b => b.Title)
-            .ThenBy(b => b.Id)
-            .Select(BookMappings.ToDto)
-            .ToPagedResultAsync(query, cancellationToken);
+        return new PagedResult<BookDto>(
+            page.Items.Select(b => b.ToDto(summaries.For(b.Id))).ToList(),
+            page.Page,
+            page.PageSize,
+            page.TotalCount);
     }
 
-    public async Task<BookDto> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        await db.Books
-            .AsNoTracking()
-            .Where(b => b.Id == id)
-            .Select(BookMappings.ToDto)
-            .FirstOrDefaultAsync(cancellationToken)
-        ?? throw new NotFoundException(nameof(Book), id);
+    public async Task<BookDto> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var book = await books.GetByIdAsync(id, cancellationToken)
+                   ?? throw new NotFoundException(nameof(Book), id);
+        var summaries = await ratings.GetSummariesAsync([id], cancellationToken);
+
+        return book.ToDto(summaries.For(id));
+    }
 
     public async Task<BookDto> CreateAsync(UpsertBookRequest request, CancellationToken cancellationToken)
     {
         var book = new Book { Title = request.Title };
         await ApplyAsync(book, request, cancellationToken);
 
-        db.Books.Add(book);
-        await db.SaveChangesAsync(cancellationToken);
+        books.Add(book);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return await GetByIdAsync(book.Id, cancellationToken);
     }
 
     public async Task<BookDto> UpdateAsync(Guid id, UpsertBookRequest request, CancellationToken cancellationToken)
     {
-        var book = await db.Books
-                       .Include(b => b.Genres)
-                       .FirstOrDefaultAsync(b => b.Id == id, cancellationToken)
+        var book = await books.GetForUpdateAsync(id, cancellationToken)
                    ?? throw new NotFoundException(nameof(Book), id);
 
         await ApplyAsync(book, request, cancellationToken);
-        await db.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return await GetByIdAsync(book.Id, cancellationToken);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var book = await db.Books.FindAsync([id], cancellationToken)
+        var book = await books.GetForUpdateAsync(id, cancellationToken)
                    ?? throw new NotFoundException(nameof(Book), id);
 
-        db.Books.Remove(book);
-        await db.SaveChangesAsync(cancellationToken);
+        books.Remove(book);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task RateAsync(Guid bookId, RateBookRequest request, CancellationToken cancellationToken)
     {
-        if (!await db.Books.AnyAsync(b => b.Id == bookId, cancellationToken))
+        if (!await books.ExistsAsync(bookId, cancellationToken))
         {
             throw new NotFoundException(nameof(Book), bookId);
         }
 
-        if (!await db.Users.AnyAsync(u => u.Id == request.UserId, cancellationToken))
+        if (!await users.ExistsAsync(request.UserId, cancellationToken))
         {
             throw new NotFoundException(nameof(User), request.UserId);
         }
 
-        var rating = await db.Ratings.FirstOrDefaultAsync(
-            r => r.BookId == bookId && r.UserId == request.UserId, cancellationToken);
-
+        var rating = await ratings.GetAsync(request.UserId, bookId, cancellationToken);
         if (rating is null)
         {
-            db.Ratings.Add(new Rating { BookId = bookId, UserId = request.UserId, Score = request.Score });
+            ratings.Add(new Rating { BookId = bookId, UserId = request.UserId, Score = request.Score });
         }
         else
         {
@@ -117,21 +105,21 @@ internal sealed class BookService(IApplicationDbContext db) : IBookService
             rating.UpdatedAt = DateTime.UtcNow;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task ApplyAsync(Book book, UpsertBookRequest request, CancellationToken cancellationToken)
     {
-        if (!await db.Authors.AnyAsync(a => a.Id == request.AuthorId, cancellationToken))
+        if (!await authors.ExistsAsync(request.AuthorId, cancellationToken))
         {
             throw new ValidationException($"Author '{request.AuthorId}' does not exist.");
         }
 
         var genreIds = request.GenreIds.Distinct().ToList();
-        var genres = await db.Genres.Where(g => genreIds.Contains(g.Id)).ToListAsync(cancellationToken);
-        if (genres.Count != genreIds.Count)
+        var foundGenres = await genres.GetByIdsAsync(genreIds, cancellationToken);
+        if (foundGenres.Count != genreIds.Count)
         {
-            var missing = genreIds.Except(genres.Select(g => g.Id));
+            var missing = genreIds.Except(foundGenres.Select(g => g.Id));
             throw new ValidationException($"Unknown genre ids: {string.Join(", ", missing)}.");
         }
 
@@ -146,7 +134,7 @@ internal sealed class BookService(IApplicationDbContext db) : IBookService
         book.AuthorId = request.AuthorId;
 
         book.Genres.Clear();
-        foreach (var genre in genres)
+        foreach (var genre in foundGenres)
         {
             book.Genres.Add(genre);
         }
