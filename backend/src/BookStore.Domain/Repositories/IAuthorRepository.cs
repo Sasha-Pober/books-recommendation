@@ -9,7 +9,8 @@ public interface IAuthorRepository
 
     Task<Author?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
+    /// <summary>Tracked, so the authors can be attached to a book.</summary>
+    Task<IReadOnlyList<Author>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
     void Add(Author author);
 }

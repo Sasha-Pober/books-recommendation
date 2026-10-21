@@ -17,7 +17,7 @@ internal sealed class GenreService(IGenreRepository genres, IUnitOfWork unitOfWo
     public async Task<IReadOnlyList<GenreDto>> GetAllAsync(CancellationToken cancellationToken)
     {
         var all = await genres.GetAllAsync(cancellationToken);
-        return all.Select(g => new GenreDto(g.Id, g.Name)).ToList();
+        return all.Select(ToDto).ToList();
     }
 
     public async Task<GenreDto> CreateAsync(CreateGenreRequest request, CancellationToken cancellationToken)
@@ -28,10 +28,17 @@ internal sealed class GenreService(IGenreRepository genres, IUnitOfWork unitOfWo
             throw new ConflictException($"Genre '{name}' already exists.");
         }
 
-        var genre = new Genre { Name = name };
+        if (request.ParentId is { } parentId && !await genres.ExistsAsync(parentId, cancellationToken))
+        {
+            throw new ValidationException($"Parent genre '{parentId}' does not exist.");
+        }
+
+        var genre = new Genre { Name = name, ParentId = request.ParentId };
         genres.Add(genre);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new GenreDto(genre.Id, genre.Name);
+        return ToDto(genre);
     }
+
+    private static GenreDto ToDto(Genre genre) => new(genre.Id, genre.Name, genre.ParentId);
 }

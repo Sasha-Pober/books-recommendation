@@ -13,6 +13,9 @@ internal sealed class GenreRepository(BookStoreDbContext db) : IGenreRepository
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
         await db.Genres.Where(g => ids.Contains(g.Id)).ToListAsync(cancellationToken);
 
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+        db.Genres.AnyAsync(g => g.Id == id, cancellationToken);
+
     public Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken) =>
         db.Genres.AnyAsync(g => g.Name == name, cancellationToken);
 

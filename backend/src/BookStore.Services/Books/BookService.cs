@@ -25,6 +25,8 @@ internal sealed class BookService(
     IBookRepository books,
     IAuthorRepository authors,
     IGenreRepository genres,
+    IPublisherRepository publishers,
+    ISeriesRepository series,
     IUserRepository users,
     IRatingRepository ratings,
     IUnitOfWork unitOfWork) : IBookService
@@ -91,17 +93,24 @@ internal sealed class BookService(
 
         if (!await users.ExistsAsync(request.UserId, cancellationToken))
         {
-            throw new NotFoundException(nameof(User), request.UserId);
+            throw new NotFoundException("User", request.UserId);
         }
 
         var rating = await ratings.GetAsync(request.UserId, bookId, cancellationToken);
         if (rating is null)
         {
-            ratings.Add(new Rating { BookId = bookId, UserId = request.UserId, Score = request.Score });
+            ratings.Add(new Rating
+            {
+                BookId = bookId,
+                UserId = request.UserId,
+                Score = request.Score,
+                ReviewText = request.ReviewText,
+            });
         }
         else
         {
             rating.Score = request.Score;
+            rating.ReviewText = request.ReviewText;
             rating.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -110,33 +119,55 @@ internal sealed class BookService(
 
     private async Task ApplyAsync(Book book, UpsertBookRequest request, CancellationToken cancellationToken)
     {
-        if (!await authors.ExistsAsync(request.AuthorId, cancellationToken))
-        {
-            throw new ValidationException($"Author '{request.AuthorId}' does not exist.");
-        }
+        var authorIds = request.AuthorIds.Distinct().ToList();
+        var foundAuthors = await authors.GetByIdsAsync(authorIds, cancellationToken);
+        EnsureAllFound("author", authorIds, foundAuthors.Select(a => a.Id));
 
         var genreIds = request.GenreIds.Distinct().ToList();
         var foundGenres = await genres.GetByIdsAsync(genreIds, cancellationToken);
-        if (foundGenres.Count != genreIds.Count)
+        EnsureAllFound("genre", genreIds, foundGenres.Select(g => g.Id));
+
+        if (request.PublisherId is { } publisherId && !await publishers.ExistsAsync(publisherId, cancellationToken))
         {
-            var missing = genreIds.Except(foundGenres.Select(g => g.Id));
-            throw new ValidationException($"Unknown genre ids: {string.Join(", ", missing)}.");
+            throw new ValidationException($"Publisher '{publisherId}' does not exist.");
+        }
+
+        if (request.SeriesId is { } seriesId && !await series.ExistsAsync(seriesId, cancellationToken))
+        {
+            throw new ValidationException($"Series '{seriesId}' does not exist.");
         }
 
         book.Title = request.Title.Trim();
         book.Isbn = request.Isbn;
-        book.Description = request.Description;
-        book.PublicationYear = request.PublicationYear;
+        book.Annotation = request.Annotation;
         book.Language = request.Language;
+        book.Year = request.Year;
+        book.Pages = request.Pages;
         book.CoverImageUrl = request.CoverImageUrl;
         book.Price = request.Price;
         book.Stock = request.Stock;
-        book.AuthorId = request.AuthorId;
+        book.PublisherId = request.PublisherId;
+        book.SeriesId = request.SeriesId;
+
+        book.Authors.Clear();
+        foreach (var author in foundAuthors)
+        {
+            book.Authors.Add(author);
+        }
 
         book.Genres.Clear();
         foreach (var genre in foundGenres)
         {
             book.Genres.Add(genre);
+        }
+    }
+
+    private static void EnsureAllFound(string entityName, IEnumerable<Guid> requested, IEnumerable<Guid> found)
+    {
+        var missing = requested.Except(found).ToList();
+        if (missing.Count > 0)
+        {
+            throw new ValidationException($"Unknown {entityName} ids: {string.Join(", ", missing)}.");
         }
     }
 }

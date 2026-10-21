@@ -4,21 +4,12 @@
 GET {{host}}/health
 
 ### Search books
-GET {{host}}/api/books?search=dune&page=1&pageSize=10
+GET {{host}}/api/books?search=дюна&page=1&pageSize=10
 
 ### Genres
 GET {{host}}/api/genres
 
-### Create user (temporary, until auth is added)
-POST {{host}}/api/users
-Content-Type: application/json
-
-{
-  "email": "reader@example.com",
-  "displayName": "Reader"
-}
-
-### Record interactions (replace ids)
+### Record interactions (replace ids; userId of a seeded demo account, e.g. customer@bookstore.local)
 POST {{host}}/api/interactions
 Content-Type: application/json
 

@@ -89,6 +89,6 @@ public class RecommendationServiceTests
     {
         Title = title,
         Stock = 1,
-        Author = new Author { FullName = "Author" },
+        Authors = [new Author { FullName = "Author" }],
     };
 }

@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using BookStore.Domain.Entities;
 using BookStore.Presentation.Authors;
+using BookStore.Presentation.Catalog;
 using BookStore.Presentation.Common;
 using BookStore.Presentation.Genres;
 
@@ -10,14 +11,17 @@ public sealed record BookDto(
     Guid Id,
     string Title,
     string? Isbn,
-    string? Description,
-    int? PublicationYear,
+    string? Annotation,
     string? Language,
+    int? Year,
+    int? Pages,
     string? CoverImageUrl,
     decimal Price,
     int Stock,
-    AuthorDto Author,
+    IReadOnlyList<AuthorDto> Authors,
     IReadOnlyList<GenreDto> Genres,
+    PublisherDto? Publisher,
+    SeriesDto? Series,
     double? AverageRating,
     int RatingsCount);
 
@@ -41,13 +45,16 @@ public sealed record UpsertBookRequest
     public string? Isbn { get; init; }
 
     [MaxLength(10000)]
-    public string? Description { get; init; }
-
-    [Range(0, 2100)]
-    public int? PublicationYear { get; init; }
+    public string? Annotation { get; init; }
 
     [MaxLength(10)]
     public string? Language { get; init; }
+
+    [Range(0, 2100)]
+    public int? Year { get; init; }
+
+    [Range(1, 100000)]
+    public int? Pages { get; init; }
 
     [Url, MaxLength(2048)]
     public string? CoverImageUrl { get; init; }
@@ -58,9 +65,14 @@ public sealed record UpsertBookRequest
     [Range(0, int.MaxValue)]
     public int Stock { get; init; }
 
-    public required Guid AuthorId { get; init; }
+    [Required, MinLength(1)]
+    public required IReadOnlyList<Guid> AuthorIds { get; init; }
 
     public IReadOnlyList<Guid> GenreIds { get; init; } = [];
+
+    public Guid? PublisherId { get; init; }
+
+    public Guid? SeriesId { get; init; }
 }
 
 public sealed record RateBookRequest
@@ -70,4 +82,7 @@ public sealed record RateBookRequest
 
     [Range(Rating.MinScore, Rating.MaxScore)]
     public int Score { get; init; }
+
+    [MaxLength(4000)]
+    public string? ReviewText { get; init; }
 }

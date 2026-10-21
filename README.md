@@ -31,18 +31,30 @@ backend/
 
 `Services` has no EF Core dependency; it works only through the repository interfaces from `Domain`.
 
+### Data model
+
+PostgreSQL 17 with pgvector. Table names are snake_case.
+
+- **Catalog:** `books`, `authors`, `book_authors`, `genres` (hierarchy via `parent_id`), `book_genres`, `publishers`, `series`.
+- **Users:** `users`, `roles` and the other ASP.NET Core Identity tables. They live in Infrastructure (`AppUser`), and domain entities reference users by `UserId` only.
+- **Shopping:** `cart_items`, `wishlist_items`, `orders`, `order_items` (`order_items` stores the price at the moment of purchase).
+- **Feedback:** `ratings` (1–5 stars plus an optional review) and `interactions`, the event log. Each interaction has a weight: view 0.2, wishlist 0.5, cart 0.7, purchase or a 4–5 rating 1.0.
+- **Recommendations:**
+  - `book_embeddings` (`vector(384)`), written by the Python pipeline;
+  - `model_versions`, where at most one version is active;
+  - `recommendation_logs`, used for CTR and A/B tests.
+
+`books.search_vector` is a generated `tsvector` column with a GIN index. It is built from the title and annotation using the `ukrainian` text search configuration, which the initial migration creates. That configuration needs the hunspell `uk_UA` dictionary, which is baked into the custom PostgreSQL image in `infra/postgres/`.
+
 ### Recommendations
 
 `IRecommendationEngine` returns ranked book ids. `RecommendationService` sits in front of it and:
 
 - removes books the user already bought or rated, and books that are out of stock;
 - enriches the ids with book data;
-- falls back to `BaselineRecommendationEngine` (popularity plus author/genre similarity) if the primary engine fails or returns nothing;
-- returns a `recommendationId` that the frontend sends back with interaction events, so clicks can be attributed to a model.
+- falls back to `BaselineRecommendationEngine` (popularity plus author/genre similarity) if the primary engine fails or returns nothing.
 
 For now the baseline engine is the primary engine. The Python neural-network service will plug in as another `IRecommendationEngine` implementation.
-
-Implicit feedback (`View`, `Click`, `AddToWishlist`, `AddToCart`, `Purchase`) is collected via `POST /api/interactions` and stored in the `interactions` table. Explicit ratings go through `PUT /api/books/{id}/rating`. These tables are the training data for the model.
 
 ## Running locally
 
@@ -54,7 +66,15 @@ Requirements: Docker. The .NET 10 SDK is needed only to run the API outside Dock
 docker compose up -d --build   # PostgreSQL + API
 ```
 
-The API container runs in `Development` mode. On startup it applies migrations and seeds a demo catalog. Database credentials come from `.env` (copy `.env.example`), or default to `bookstore`.
+The API container runs in `Development` mode. On startup it applies migrations and seeds roles, demo accounts and a demo Ukrainian catalog. Database credentials come from `.env` (copy `.env.example`), or default to `bookstore`.
+
+Demo accounts (development only):
+
+| Email | Password | Role |
+|---|---|---|
+| admin@bookstore.local | Admin123! | Admin |
+| manager@bookstore.local | Manager123! | Manager |
+| customer@bookstore.local | Customer123! | Customer |
 
 ### API from the IDE / CLI, database in Docker
 
@@ -72,6 +92,13 @@ Both ways expose the API on port 5292:
 - Sample requests: `backend/src/BookStore.Api/BookStore.Api.http`
 
 Stop the `api` container before running the API locally, since both use port 5292. To reset the database: `docker compose down -v`.
+
+Check the Ukrainian full-text search configuration:
+
+```bash
+docker compose exec postgres psql -U bookstore -d bookstore \
+  -c "SELECT to_tsvector('ukrainian', 'Пол Атрід бореться за пустельну планету')"
+```
 
 ### Tests
 

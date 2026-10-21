@@ -8,12 +8,23 @@ public class Book : Entity
 
     public string? Isbn { get; set; }
 
-    /// <summary>Used later by the ML service to build content (text) embeddings.</summary>
-    public string? Description { get; set; }
+    /// <summary>Together with the title, the input of the content (text) embedding.</summary>
+    public string? Annotation { get; set; }
 
-    public int? PublicationYear { get; set; }
+    public Guid? PublisherId { get; set; }
 
+    public Publisher? Publisher { get; set; }
+
+    public Guid? SeriesId { get; set; }
+
+    public Series? Series { get; set; }
+
+    /// <summary>ISO 639-1 code, e.g. "uk".</summary>
     public string? Language { get; set; }
+
+    public int? Year { get; set; }
+
+    public int? Pages { get; set; }
 
     public string? CoverImageUrl { get; set; }
 
@@ -21,11 +32,7 @@ public class Book : Entity
 
     public int Stock { get; set; }
 
-    public Guid AuthorId { get; set; }
-
-    public Author Author { get; set; } = null!;
+    public ICollection<Author> Authors { get; set; } = [];
 
     public ICollection<Genre> Genres { get; set; } = [];
-
-    public ICollection<Rating> Ratings { get; set; } = [];
 }

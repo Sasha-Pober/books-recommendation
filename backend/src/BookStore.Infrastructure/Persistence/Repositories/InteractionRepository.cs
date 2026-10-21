@@ -10,7 +10,7 @@ internal sealed class InteractionRepository(BookStoreDbContext db) : IInteractio
 {
     public async Task<IReadOnlyList<Guid>> GetPurchasedBookIdsAsync(Guid userId, CancellationToken cancellationToken) =>
         await db.Interactions
-            .Where(i => i.UserId == userId && i.Type == InteractionType.Purchase)
+            .Where(i => i.UserId == userId && i.EventType == InteractionType.Purchase)
             .Select(i => i.BookId)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -24,11 +24,7 @@ internal sealed class InteractionRepository(BookStoreDbContext db) : IInteractio
             .Select(g => new
             {
                 BookId = g.Key,
-                Score = g.Sum(i =>
-                    i.Type == InteractionType.Purchase ? 5.0 :
-                    i.Type == InteractionType.AddToCart ? 3.0 :
-                    i.Type == InteractionType.AddToWishlist ? 2.0 :
-                    1.0),
+                Score = g.Sum(i => i.Weight),
             })
             .OrderByDescending(x => x.Score)
             .Take(count)

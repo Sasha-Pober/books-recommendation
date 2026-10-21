@@ -16,6 +16,8 @@ public class BookServiceTests
         _books,
         _authors,
         Substitute.For<IGenreRepository>(),
+        Substitute.For<IPublisherRepository>(),
+        Substitute.For<ISeriesRepository>(),
         Substitute.For<IUserRepository>(),
         Substitute.For<IRatingRepository>(),
         _unitOfWork);
@@ -23,8 +25,8 @@ public class BookServiceTests
     [Fact]
     public async Task Create_WithUnknownAuthor_ThrowsValidationException_AndSavesNothing()
     {
-        _authors.ExistsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(false);
-        var request = new UpsertBookRequest { Title = "Title", AuthorId = Guid.NewGuid() };
+        _authors.GetByIdsAsync(default!, default).ReturnsForAnyArgs([]);
+        var request = new UpsertBookRequest { Title = "Title", AuthorIds = [Guid.NewGuid()] };
 
         await Assert.ThrowsAsync<ValidationException>(() => CreateService().CreateAsync(request, CancellationToken.None));
 

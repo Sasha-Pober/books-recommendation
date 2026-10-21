@@ -1,24 +1,61 @@
 using BookStore.Domain.Entities;
 using BookStore.Domain.Repositories;
+using BookStore.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookStore.Infrastructure.Persistence;
 
 public sealed class BookStoreDbContext(DbContextOptions<BookStoreDbContext> options)
-    : DbContext(options), IUnitOfWork
+    : IdentityDbContext<AppUser, AppRole, Guid>(options), IUnitOfWork
 {
+    /// <summary>Name of the PostgreSQL text search configuration created by the initial migration.</summary>
+    public const string TextSearchConfig = "ukrainian";
+
     public DbSet<Book> Books => Set<Book>();
 
     public DbSet<Author> Authors => Set<Author>();
 
     public DbSet<Genre> Genres => Set<Genre>();
 
-    public DbSet<User> Users => Set<User>();
+    public DbSet<Publisher> Publishers => Set<Publisher>();
+
+    public DbSet<Series> Series => Set<Series>();
 
     public DbSet<Rating> Ratings => Set<Rating>();
 
+    public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
+
+    public DbSet<CartItem> CartItems => Set<CartItem>();
+
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+
     public DbSet<Interaction> Interactions => Set<Interaction>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    public DbSet<BookEmbedding> BookEmbeddings => Set<BookEmbedding>();
+
+    public DbSet<ModelVersion> ModelVersions => Set<ModelVersion>();
+
+    public DbSet<RecommendationLog> RecommendationLogs => Set<RecommendationLog>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // Shorter names than the AspNet* defaults. Set before the other configurations,
+        // so foreign keys to users are named after the final table name.
+        modelBuilder.Entity<AppUser>().ToTable("users");
+        modelBuilder.Entity<AppRole>().ToTable("roles");
+        modelBuilder.Entity<IdentityUserRole<Guid>>().ToTable("user_roles");
+        modelBuilder.Entity<IdentityUserClaim<Guid>>().ToTable("user_claims");
+        modelBuilder.Entity<IdentityUserLogin<Guid>>().ToTable("user_logins");
+        modelBuilder.Entity<IdentityUserToken<Guid>>().ToTable("user_tokens");
+        modelBuilder.Entity<IdentityRoleClaim<Guid>>().ToTable("role_claims");
+
+        modelBuilder.HasPostgresExtension("vector");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BookStoreDbContext).Assembly);
+    }
 }

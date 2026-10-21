@@ -13,10 +13,9 @@ public sealed record InteractionEvent
 
     public required Guid BookId { get; init; }
 
+    /// <summary><see cref="InteractionType.Rating"/> is not accepted here; ratings have their own endpoint.</summary>
     [EnumDataType(typeof(InteractionType))]
     public required InteractionType Type { get; init; }
-
-    public Guid? RecommendationId { get; init; }
 }
 
 /// <summary>The frontend batches events and sends them together.</summary>

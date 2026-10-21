@@ -38,7 +38,7 @@ internal sealed class RecommendationService(
     {
         if (!await users.ExistsAsync(userId, cancellationToken))
         {
-            throw new NotFoundException(nameof(User), userId);
+            throw new NotFoundException("User", userId);
         }
 
         // Don't recommend books the user already bought or rated.
@@ -93,7 +93,7 @@ internal sealed class RecommendationService(
             .Select(c => new RecommendedBookDto(inStock[c.BookId].ToDto(summaries.For(c.BookId)), c.Score))
             .ToList();
 
-        return new RecommendationListDto(Guid.CreateVersion7(), source, items);
+        return new RecommendationListDto(source, items);
     }
 
     private async Task<(string Source, IReadOnlyList<ScoredBook> Candidates)> QueryWithFallbackAsync(

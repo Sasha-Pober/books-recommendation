@@ -11,5 +11,10 @@ internal sealed class GenreConfiguration : IEntityTypeConfiguration<Genre>
         builder.Property(g => g.Name).HasMaxLength(100);
 
         builder.HasIndex(g => g.Name).IsUnique();
+
+        builder.HasOne(g => g.Parent)
+            .WithMany(g => g.Children)
+            .HasForeignKey(g => g.ParentId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

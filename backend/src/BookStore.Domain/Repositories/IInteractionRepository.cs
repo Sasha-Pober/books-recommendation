@@ -7,7 +7,7 @@ public interface IInteractionRepository
 {
     Task<IReadOnlyList<Guid>> GetPurchasedBookIdsAsync(Guid userId, CancellationToken cancellationToken);
 
-    /// <summary>In-stock books ranked by the weighted sum of their interactions since <paramref name="since"/>.</summary>
+    /// <summary>In-stock books ranked by the sum of their interaction weights since <paramref name="since"/>.</summary>
     Task<IReadOnlyList<ScoredBook>> GetPopularBooksAsync(
         DateTime since, int count, IReadOnlyCollection<Guid> excludeIds, CancellationToken cancellationToken);
 

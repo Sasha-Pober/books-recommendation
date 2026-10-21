@@ -1,4 +1,5 @@
 using BookStore.Domain.Entities;
+using BookStore.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,15 +12,18 @@ internal sealed class RatingConfiguration : IEntityTypeConfiguration<Rating>
         builder.ToTable(t => t.HasCheckConstraint(
             "ck_ratings_score", $"score BETWEEN {Rating.MinScore} AND {Rating.MaxScore}"));
 
-        builder.HasIndex(r => new { r.UserId, r.BookId }).IsUnique();
+        builder.HasKey(r => new { r.UserId, r.BookId });
+        builder.HasIndex(r => r.BookId);
 
-        builder.HasOne(r => r.User)
-            .WithMany(u => u.Ratings)
+        builder.Property(r => r.ReviewText).HasMaxLength(4000);
+
+        builder.HasOne<AppUser>()
+            .WithMany()
             .HasForeignKey(r => r.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(r => r.Book)
-            .WithMany(b => b.Ratings)
+            .WithMany()
             .HasForeignKey(r => r.BookId)
             .OnDelete(DeleteBehavior.Cascade);
     }

@@ -2,7 +2,10 @@
 # will be added here as they are implemented.
 services:
   postgres:
-    image: postgres:17-alpine
+    # pgvector + Ukrainian full-text search dictionary, see infra/postgres/Dockerfile
+    build:
+      context: ./infra/postgres
+    image: bookstore-postgres:17
     container_name: bookstore-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bookstore}

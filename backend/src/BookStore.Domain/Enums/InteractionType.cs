@@ -1,14 +1,11 @@
 namespace BookStore.Domain.Enums;
 
-/// <summary>
-/// Implicit feedback signals collected from the frontend.
-/// These are the main training data for the recommendation model.
-/// </summary>
+/// <summary>User events collected as implicit (and explicit, for ratings) feedback.</summary>
 public enum InteractionType
 {
     View = 1,
-    Click = 2,
-    AddToWishlist = 3,
-    AddToCart = 4,
-    Purchase = 5,
+    AddToWishlist = 2,
+    AddToCart = 3,
+    Purchase = 4,
+    Rating = 5,
 }

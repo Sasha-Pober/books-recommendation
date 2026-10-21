@@ -17,8 +17,9 @@ internal sealed class AuthorRepository(BookStoreDbContext db) : IAuthorRepositor
     public Task<Author?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         db.Authors.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
-    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
-        db.Authors.AnyAsync(a => a.Id == id, cancellationToken);
+    public async Task<IReadOnlyList<Author>> GetByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        await db.Authors.Where(a => ids.Contains(a.Id)).ToListAsync(cancellationToken);
 
     public void Add(Author author) => db.Authors.Add(author);
 }

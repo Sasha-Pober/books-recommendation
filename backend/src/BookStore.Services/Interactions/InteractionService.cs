@@ -1,4 +1,5 @@
 using BookStore.Domain.Entities;
+using BookStore.Domain.Enums;
 using BookStore.Domain.Exceptions;
 using BookStore.Domain.Repositories;
 using BookStore.Presentation.Interactions;
@@ -18,6 +19,11 @@ internal sealed class InteractionService(
 {
     public async Task RecordAsync(RecordInteractionsRequest request, CancellationToken cancellationToken)
     {
+        if (request.Events.Any(e => e.Type == InteractionType.Rating))
+        {
+            throw new ValidationException("Ratings are submitted through the book rating endpoint.");
+        }
+
         var bookIds = request.Events.Select(e => e.BookId).Distinct().ToList();
         var unknownBooks = bookIds.Except(await books.GetExistingIdsAsync(bookIds, cancellationToken)).ToList();
         if (unknownBooks.Count > 0)
@@ -32,14 +38,8 @@ internal sealed class InteractionService(
             throw new ValidationException($"Unknown user ids: {string.Join(", ", unknownUsers)}.");
         }
 
-        interactions.AddRange(request.Events.Select(e => new Interaction
-        {
-            UserId = e.UserId,
-            SessionId = e.SessionId,
-            BookId = e.BookId,
-            Type = e.Type,
-            RecommendationId = e.RecommendationId,
-        }));
+        interactions.AddRange(request.Events.Select(e =>
+            Interaction.Create(e.UserId, e.SessionId, e.BookId, e.Type)));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }

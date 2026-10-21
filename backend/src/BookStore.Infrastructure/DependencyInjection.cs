@@ -1,4 +1,5 @@
 using BookStore.Domain.Repositories;
+using BookStore.Infrastructure.Identity;
 using BookStore.Infrastructure.Persistence;
 using BookStore.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -18,13 +19,21 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<BookStoreDbContext>(options => options
-            .UseNpgsql(connectionString)
+            .UseNpgsql(connectionString, npgsql => npgsql.UseVector())
             .UseSnakeCaseNamingConvention());
+
+        // Identity stores only; authentication (JWT) is configured in the API.
+        services
+            .AddIdentityCore<AppUser>(options => options.User.RequireUniqueEmail = true)
+            .AddRoles<AppRole>()
+            .AddEntityFrameworkStores<BookStoreDbContext>();
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<BookStoreDbContext>());
         services.AddScoped<IBookRepository, BookRepository>();
         services.AddScoped<IAuthorRepository, AuthorRepository>();
         services.AddScoped<IGenreRepository, GenreRepository>();
+        services.AddScoped<IPublisherRepository, PublisherRepository>();
+        services.AddScoped<ISeriesRepository, SeriesRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRatingRepository, RatingRepository>();
         services.AddScoped<IInteractionRepository, InteractionRepository>();

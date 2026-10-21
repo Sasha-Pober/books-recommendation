@@ -9,7 +9,13 @@ namespace BookStore.Infrastructure.Persistence.Repositories;
 internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
 {
     private IQueryable<Book> ReadOnlyWithDetails =>
-        db.Books.AsNoTracking().Include(b => b.Author).Include(b => b.Genres);
+        db.Books
+            .AsNoTracking()
+            .Include(b => b.Authors)
+            .Include(b => b.Genres)
+            .Include(b => b.Publisher)
+            .Include(b => b.Series)
+            .AsSplitQuery();
 
     public Task<PagedList<Book>> SearchAsync(BookFilter filter, CancellationToken cancellationToken)
     {
@@ -19,7 +25,7 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
         {
             var term = filter.Search.ToLower();
             books = books.Where(b =>
-                b.Title.ToLower().Contains(term) || b.Author.FullName.ToLower().Contains(term));
+                b.Title.ToLower().Contains(term) || b.Authors.Any(a => a.FullName.ToLower().Contains(term)));
         }
 
         if (filter.GenreId is { } genreId)
@@ -29,7 +35,7 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
 
         if (filter.AuthorId is { } authorId)
         {
-            books = books.Where(b => b.AuthorId == authorId);
+            books = books.Where(b => b.Authors.Any(a => a.Id == authorId));
         }
 
         return books
@@ -42,7 +48,11 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
         ReadOnlyWithDetails.FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
 
     public Task<Book?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
-        db.Books.Include(b => b.Genres).FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+        db.Books
+            .Include(b => b.Authors)
+            .Include(b => b.Genres)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Book>> GetInStockByIdsAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
@@ -71,7 +81,11 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
     {
         var source = await db.Books
             .Where(b => b.Id == bookId)
-            .Select(b => new { b.AuthorId, GenreIds = b.Genres.Select(g => g.Id).ToList() })
+            .Select(b => new
+            {
+                AuthorIds = b.Authors.Select(a => a.Id).ToList(),
+                GenreIds = b.Genres.Select(g => g.Id).ToList(),
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (source is null)
@@ -79,17 +93,18 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
             return [];
         }
 
-        var authorId = source.AuthorId;
+        var authorIds = source.AuthorIds;
         var genreIds = source.GenreIds;
         var excluded = excludeIds.Append(bookId).ToList();
 
         var similar = await db.Books
             .Where(b => b.Stock > 0 && !excluded.Contains(b.Id))
-            .Where(b => b.AuthorId == authorId || b.Genres.Any(g => genreIds.Contains(g.Id)))
+            .Where(b => b.Authors.Any(a => authorIds.Contains(a.Id)) || b.Genres.Any(g => genreIds.Contains(g.Id)))
             .Select(b => new
             {
                 b.Id,
-                Score = (b.AuthorId == authorId ? 2.0 : 0.0) + b.Genres.Count(g => genreIds.Contains(g.Id)),
+                Score = (b.Authors.Any(a => authorIds.Contains(a.Id)) ? 2.0 : 0.0)
+                        + b.Genres.Count(g => genreIds.Contains(g.Id)),
             })
             .OrderByDescending(x => x.Score)
             .Take(count)
