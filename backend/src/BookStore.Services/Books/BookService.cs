@@ -1,7 +1,6 @@
 using BookStore.Domain.Common;
 using BookStore.Domain.Entities;
 using BookStore.Domain.Exceptions;
-using BookStore.Domain.Identity;
 using BookStore.Domain.Repositories;
 using BookStore.Presentation.Books;
 using BookStore.Presentation.Common;
@@ -20,8 +19,6 @@ public interface IBookService
 
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 
-    /// <summary>Creates or updates the current user's rating of the book.</summary>
-    Task RateAsync(Guid bookId, RateBookRequest request, CancellationToken cancellationToken);
 }
 
 internal sealed class BookService(
@@ -30,9 +27,7 @@ internal sealed class BookService(
     IGenreRepository genres,
     IPublisherRepository publishers,
     ISeriesRepository series,
-    IUserRepository users,
     IRatingRepository ratings,
-    ICurrentUser currentUser,
     IUnitOfWork unitOfWork) : IBookService
 {
     public async Task<PagedResult<BookDto>> SearchAsync(BookQuery query, CancellationToken cancellationToken)
@@ -111,39 +106,6 @@ internal sealed class BookService(
         }
 
         books.Remove(book);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task RateAsync(Guid bookId, RateBookRequest request, CancellationToken cancellationToken)
-    {
-        if (!await books.ExistsAsync(bookId, cancellationToken))
-        {
-            throw new NotFoundException(nameof(Book), bookId);
-        }
-
-        if (currentUser.UserId is not { } userId || !await users.ExistsAsync(userId, cancellationToken))
-        {
-            throw new UnauthorizedException("Sign in to rate books.");
-        }
-
-        var rating = await ratings.GetAsync(userId, bookId, cancellationToken);
-        if (rating is null)
-        {
-            ratings.Add(new Rating
-            {
-                BookId = bookId,
-                UserId = userId,
-                Score = request.Score,
-                ReviewText = request.ReviewText,
-            });
-        }
-        else
-        {
-            rating.Score = request.Score;
-            rating.ReviewText = request.ReviewText;
-            rating.UpdatedAt = DateTime.UtcNow;
-        }
-
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

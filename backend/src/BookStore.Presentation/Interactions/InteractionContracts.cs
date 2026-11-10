@@ -8,7 +8,10 @@ public sealed record InteractionEvent
 {
     public required Guid BookId { get; init; }
 
-    /// <summary><see cref="InteractionType.Rating"/> is not accepted here; ratings have their own endpoint.</summary>
+    /// <summary>
+    /// Only <see cref="InteractionType.View"/>: cart, wishlist, purchase and rating events are recorded
+    /// by the server when those actions happen.
+    /// </summary>
     [EnumDataType(typeof(InteractionType))]
     public required InteractionType Type { get; init; }
 }

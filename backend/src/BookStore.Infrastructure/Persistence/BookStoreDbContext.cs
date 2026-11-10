@@ -43,6 +43,29 @@ public sealed class BookStoreDbContext(DbContextOptions<BookStoreDbContext> opti
 
     public DbSet<StoredRefreshToken> RefreshTokens => Set<StoredRefreshToken>();
 
+    public async Task<T> InTransactionAsync<T>(
+        Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken = default)
+    {
+        if (Database.CurrentTransaction is not null)
+        {
+            return await action(cancellationToken);
+        }
+
+        await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var result = await action(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            // Changes tracked during the failed attempt must not leak into a later SaveChanges of this scope.
+            ChangeTracker.Clear();
+            throw;
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

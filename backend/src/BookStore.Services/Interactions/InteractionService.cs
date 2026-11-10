@@ -22,9 +22,11 @@ internal sealed class InteractionService(
 {
     public async Task RecordAsync(RecordInteractionsRequest request, CancellationToken cancellationToken)
     {
-        if (request.Events.Any(e => e.Type == InteractionType.Rating))
+        // Cart, wishlist, purchase and rating events are recorded by the server when those actions happen,
+        // so clients can't inflate them and they aren't counted twice.
+        if (request.Events.Any(e => e.Type != InteractionType.View))
         {
-            throw new ValidationException("Ratings are submitted through the book rating endpoint.");
+            throw new ValidationException("Only View events are accepted; other events are recorded by the server.");
         }
 
         var bookIds = request.Events.Select(e => e.BookId).Distinct().ToList();

@@ -28,6 +28,15 @@ internal static class BookMappings
         rating.Average,
         rating.Count);
 
+    /// <remarks>Expects authors to be loaded.</remarks>
+    public static BookSummaryDto ToSummaryDto(this Book book) => new(
+        book.Id,
+        book.Title,
+        book.Authors.OrderBy(a => a.FullName).Select(a => a.FullName).ToList(),
+        book.CoverImageUrl,
+        book.Price,
+        book.Stock);
+
     public static RatingSummary For(this IReadOnlyDictionary<Guid, RatingSummary> summaries, Guid bookId) =>
         summaries.GetValueOrDefault(bookId, RatingSummary.Empty);
 }

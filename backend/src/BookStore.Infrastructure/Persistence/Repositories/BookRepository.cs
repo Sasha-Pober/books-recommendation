@@ -145,6 +145,11 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         db.Books.AnyAsync(b => b.Id == id, cancellationToken);
 
+    public async Task<bool> TryReserveStockAsync(Guid bookId, int quantity, CancellationToken cancellationToken) =>
+        await db.Books
+            .Where(b => b.Id == bookId && b.Stock >= quantity)
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.Stock, b => b.Stock - quantity), cancellationToken) == 1;
+
     public Task<bool> HasOrdersAsync(Guid id, CancellationToken cancellationToken) =>
         db.OrderItems.AnyAsync(i => i.BookId == id, cancellationToken);
 

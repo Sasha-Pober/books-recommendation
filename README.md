@@ -65,6 +65,26 @@ Catalog management needs the `Manager` or `Admin` role:
 
 A book that has been ordered can't be deleted (409). Set its stock to 0 instead.
 
+### Shopping and ratings (Customer role)
+
+| Endpoint | Purpose |
+|---|---|
+| `GET/POST/DELETE /api/cart`, `PUT/DELETE /api/cart/{bookId}` | Cart. Each change returns the whole cart; the quantity can't exceed the stock |
+| `GET/POST /api/wishlist`, `DELETE /api/wishlist/{bookId}` | Wishlist (adding and removing are idempotent) |
+| `POST /api/orders` | Places an order from the cart |
+| `GET /api/orders`, `GET /api/orders/{id}` | The customer's own orders |
+| `POST /api/books/{id}/ratings` | Rates a book 1–5 with an optional review; rating it again replaces the old one |
+| `GET /api/books/{id}/ratings` | Reviews of a book (public) |
+
+Placing an order runs in one transaction:
+1. Stock is decremented with a conditional `UPDATE`, so two customers can't buy the last copy.
+2. The order is created with each line's current price.
+3. The cart is emptied and purchase events are recorded.
+
+If any book runs short, nothing is saved and the API returns 409.
+
+**Events:** the server records cart, wishlist, purchase and rating events itself, when those actions happen. `POST /api/interactions` accepts only `View` events from clients.
+
 ### Authentication and roles
 
 ASP.NET Core Identity stores the accounts. The API is stateless and uses JWT bearer tokens.
@@ -81,7 +101,7 @@ ASP.NET Core Identity stores the accounts. The API is stateless and uses JWT bea
 - **Login protection:** an account is locked for 15 minutes after 5 failed passwords. The auth endpoints are also limited to 20 requests per minute per IP.
 - **Roles:**
   - guests (no token) can browse, record events and get recommendations;
-  - `Customer` can rate books;
+  - `Customer` can use the cart, wishlist and orders, and rate books;
   - `Manager` (and `Admin`) manage the catalog under `/api/admin/...`.
 - **Guest sessions:** every browser gets an HttpOnly `bookstore_session` cookie. Guest events are recorded under it. On login or registration they are attached to the account, and the cookie is renewed on login and logout. The SPA must send requests with credentials for the cookie to work.
 - **Configuration:** the `Jwt` section in `appsettings.json`. `Jwt:SigningKey` (at least 32 characters) is required, and the API refuses to start without it. The development key lives in `appsettings.Development.json`; set a real one through the `Jwt__SigningKey` environment variable elsewhere.

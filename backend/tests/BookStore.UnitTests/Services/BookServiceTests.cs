@@ -1,7 +1,6 @@
 using BookStore.Domain.Common;
 using BookStore.Domain.Entities;
 using BookStore.Domain.Exceptions;
-using BookStore.Domain.Identity;
 using BookStore.Domain.Recommendations;
 using BookStore.Domain.Repositories;
 using BookStore.Presentation.Books;
@@ -17,7 +16,6 @@ public class BookServiceTests
     private readonly IGenreRepository _genres = Substitute.For<IGenreRepository>();
     private readonly IRatingRepository _ratings = Substitute.For<IRatingRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
 
     private BookService CreateService() => new(
         _books,
@@ -25,9 +23,7 @@ public class BookServiceTests
         _genres,
         Substitute.For<IPublisherRepository>(),
         Substitute.For<ISeriesRepository>(),
-        Substitute.For<IUserRepository>(),
         _ratings,
-        _currentUser,
         _unitOfWork);
 
     [Fact]
@@ -40,16 +36,6 @@ public class BookServiceTests
 
         _books.DidNotReceiveWithAnyArgs().Add(default!);
         await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
-    }
-
-    [Fact]
-    public async Task Rate_AsGuest_ThrowsUnauthorized()
-    {
-        _books.ExistsAsync(default, default).ReturnsForAnyArgs(true);
-        _currentUser.UserId.Returns((Guid?)null);
-
-        await Assert.ThrowsAsync<UnauthorizedException>(() =>
-            CreateService().RateAsync(Guid.NewGuid(), new RateBookRequest { Score = 5 }, CancellationToken.None));
     }
 
     [Fact]

@@ -20,6 +20,12 @@ public interface IBookRepository
 
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Atomically decrements stock if at least <paramref name="quantity"/> is available. Runs immediately.
+    /// Concurrent orders for the last copies can't both succeed.
+    /// </summary>
+    Task<bool> TryReserveStockAsync(Guid bookId, int quantity, CancellationToken cancellationToken);
+
     /// <summary>Ordered books can't be deleted: order history must keep pointing at them.</summary>
     Task<bool> HasOrdersAsync(Guid id, CancellationToken cancellationToken);
 

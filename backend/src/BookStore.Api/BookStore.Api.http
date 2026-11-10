@@ -50,7 +50,7 @@ Content-Type: application/json
   "refreshToken": "{{login.response.body.$.refreshToken}}"
 }
 
-### Record interactions (replace the book id; works for guests too, without the Authorization header)
+### Record a view (the only event type clients send; works for guests without the Authorization header)
 POST {{host}}/api/interactions
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Content-Type: application/json
@@ -60,6 +60,42 @@ Content-Type: application/json
     { "bookId": "00000000-0000-0000-0000-000000000000", "type": "View" }
   ]
 }
+
+### Add to cart (replace the book id)
+POST {{host}}/api/cart
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "bookId": "00000000-0000-0000-0000-000000000000", "quantity": 1 }
+
+### Cart
+GET {{host}}/api/cart
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Place an order from the cart
+POST {{host}}/api/orders
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### My orders
+GET {{host}}/api/orders
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Add to wishlist (replace the book id)
+POST {{host}}/api/wishlist
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "bookId": "00000000-0000-0000-0000-000000000000" }
+
+### Rate a book (replace the book id)
+POST {{host}}/api/books/00000000-0000-0000-0000-000000000000/ratings
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "score": 5, "reviewText": "Чудова книга!" }
+
+### Reviews of a book
+GET {{host}}/api/books/00000000-0000-0000-0000-000000000000/ratings
 
 ### Recommendations: personalized when signed in, popular for guests
 GET {{host}}/api/recommendations/home?count=10

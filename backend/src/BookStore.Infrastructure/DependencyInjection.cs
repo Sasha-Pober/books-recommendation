@@ -53,6 +53,9 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRatingRepository, RatingRepository>();
         services.AddScoped<IInteractionRepository, InteractionRepository>();
+        services.AddScoped<ICartRepository, CartRepository>();
+        services.AddScoped<IWishlistRepository, WishlistRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
 
         services.AddScoped<DatabaseInitializer>();
 

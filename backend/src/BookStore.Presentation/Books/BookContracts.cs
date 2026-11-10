@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using BookStore.Domain.Entities;
 using BookStore.Domain.Enums;
 using BookStore.Presentation.Authors;
 using BookStore.Presentation.Catalog;
@@ -121,12 +120,6 @@ public sealed record UpsertBookRequest
     public Guid? SeriesId { get; init; }
 }
 
-/// <remarks>The user is taken from the JWT.</remarks>
-public sealed record RateBookRequest
-{
-    [Range(Rating.MinScore, Rating.MaxScore)]
-    public int Score { get; init; }
-
-    [MaxLength(4000)]
-    public string? ReviewText { get; init; }
-}
+/// <summary>Compact book for cart, wishlist and order lines.</summary>
+public sealed record BookSummaryDto(
+    Guid Id, string Title, IReadOnlyList<string> Authors, string? CoverImageUrl, decimal Price, int Stock);

@@ -5,7 +5,9 @@ using BookStore.Services.Books;
 using BookStore.Services.Catalog;
 using BookStore.Services.Genres;
 using BookStore.Services.Interactions;
+using BookStore.Services.Ratings;
 using BookStore.Services.Recommendations;
+using BookStore.Services.Shopping;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -22,6 +24,10 @@ public static class DependencyInjection
         services.AddScoped<IPublisherService, PublisherService>();
         services.AddScoped<ISeriesService, SeriesService>();
         services.AddScoped<IInteractionService, InteractionService>();
+        services.AddScoped<IRatingService, RatingService>();
+        services.AddScoped<ICartService, CartService>();
+        services.AddScoped<IWishlistService, WishlistService>();
+        services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IRecommendationService, RecommendationService>();
 
         services.AddScoped<BaselineRecommendationEngine>();
