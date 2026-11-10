@@ -9,26 +9,60 @@ GET {{host}}/api/books?search=дюна&page=1&pageSize=10
 ### Genres
 GET {{host}}/api/genres
 
-### Record interactions (replace ids; userId of a seeded demo account, e.g. customer@bookstore.local)
+### Register a customer (guest events of this browser session are attached to the new account)
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "reader@example.com",
+  "password": "Reader123!",
+  "fullName": "Читач"
+}
+
+### Log in as the seeded demo customer (manager@bookstore.local / Manager123! for catalog management)
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "customer@bookstore.local",
+  "password": "Customer123!"
+}
+
+### Current user
+GET {{host}}/api/auth/me
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Refresh tokens (the refresh token is single-use)
+POST {{host}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.$.refreshToken}}"
+}
+
+### Record interactions (replace the book id; works for guests too, without the Authorization header)
 POST {{host}}/api/interactions
+Authorization: Bearer {{login.response.body.$.accessToken}}
 Content-Type: application/json
 
 {
   "events": [
-    {
-      "userId": "00000000-0000-0000-0000-000000000000",
-      "sessionId": "session-1",
-      "bookId": "00000000-0000-0000-0000-000000000000",
-      "type": "Purchase"
-    }
+    { "bookId": "00000000-0000-0000-0000-000000000000", "type": "View" }
   ]
 }
 
-### Popular books (anonymous)
-GET {{host}}/api/recommendations/popular?count=5
-
-### Personalized recommendations (replace id)
-GET {{host}}/api/recommendations/users/00000000-0000-0000-0000-000000000000?count=10
+### Recommendations: personalized when signed in, popular for guests
+GET {{host}}/api/recommendations/home?count=10
+Authorization: Bearer {{login.response.body.$.accessToken}}
 
 ### Similar books (replace id)
 GET {{host}}/api/recommendations/books/00000000-0000-0000-0000-000000000000/similar?count=5
+
+### Log out (revokes the refresh token)
+POST {{host}}/api/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.$.refreshToken}}"
+}

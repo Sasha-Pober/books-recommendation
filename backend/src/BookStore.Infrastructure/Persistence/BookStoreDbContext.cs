@@ -41,6 +41,8 @@ public sealed class BookStoreDbContext(DbContextOptions<BookStoreDbContext> opti
 
     public DbSet<RecommendationLog> RecommendationLogs => Set<RecommendationLog>();
 
+    public DbSet<StoredRefreshToken> RefreshTokens => Set<StoredRefreshToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

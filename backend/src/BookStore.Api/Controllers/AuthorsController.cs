@@ -1,6 +1,8 @@
+using BookStore.Api.Auth;
 using BookStore.Presentation.Authors;
 using BookStore.Presentation.Common;
 using BookStore.Services.Authors;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookStore.Api.Controllers;
@@ -18,6 +20,7 @@ public sealed class AuthorsController(IAuthorService authors) : ControllerBase
         authors.GetByIdAsync(id, cancellationToken);
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicies.Manager)]
     public async Task<ActionResult<AuthorDto>> Create(CreateAuthorRequest request, CancellationToken cancellationToken)
     {
         var author = await authors.CreateAsync(request, cancellationToken);

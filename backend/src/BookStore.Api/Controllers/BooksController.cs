@@ -1,6 +1,8 @@
+using BookStore.Api.Auth;
 using BookStore.Presentation.Books;
 using BookStore.Presentation.Common;
 using BookStore.Services.Books;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookStore.Api.Controllers;
@@ -18,6 +20,7 @@ public sealed class BooksController(IBookService books) : ControllerBase
         books.GetByIdAsync(id, cancellationToken);
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicies.Manager)]
     public async Task<ActionResult<BookDto>> Create(UpsertBookRequest request, CancellationToken cancellationToken)
     {
         var book = await books.CreateAsync(request, cancellationToken);
@@ -25,18 +28,21 @@ public sealed class BooksController(IBookService books) : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.Manager)]
     public Task<BookDto> Update(Guid id, UpsertBookRequest request, CancellationToken cancellationToken) =>
         books.UpdateAsync(id, request, cancellationToken);
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.Manager)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         await books.DeleteAsync(id, cancellationToken);
         return NoContent();
     }
 
-    /// <summary>Creates or updates the user's rating of the book.</summary>
+    /// <summary>Creates or updates the current user's rating of the book.</summary>
     [HttpPut("{id:guid}/rating")]
+    [Authorize(Policy = AuthPolicies.Customer)]
     public async Task<IActionResult> Rate(Guid id, RateBookRequest request, CancellationToken cancellationToken)
     {
         await books.RateAsync(id, request, cancellationToken);

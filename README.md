@@ -46,6 +46,27 @@ PostgreSQL 17 with pgvector. Table names are snake_case.
 
 `books.search_vector` is a generated `tsvector` column with a GIN index. It is built from the title and annotation using the `ukrainian` text search configuration, which the initial migration creates. That configuration needs the hunspell `uk_UA` dictionary, which is baked into the custom PostgreSQL image in `infra/postgres/`.
 
+### Authentication and roles
+
+ASP.NET Core Identity stores the accounts. The API is stateless and uses JWT bearer tokens.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/auth/register` | Creates a `Customer` account and returns tokens |
+| `POST /api/auth/login` | Returns an access token (JWT, 15 min) and a refresh token (14 days) |
+| `POST /api/auth/refresh` | Exchanges a refresh token for a new pair |
+| `POST /api/auth/logout` | Revokes the refresh token |
+| `GET /api/auth/me` | Returns the current user |
+
+- **Refresh tokens are single-use.** Only their SHA-256 hash is stored. If an already used token is presented again, every session of that user is revoked, because the token was probably stolen.
+- **Login protection:** an account is locked for 15 minutes after 5 failed passwords. The auth endpoints are also limited to 20 requests per minute per IP.
+- **Roles:**
+  - guests (no token) can browse, record events and get recommendations;
+  - `Customer` can rate books;
+  - `Manager` (and `Admin`) can create, edit and delete books, authors and genres.
+- **Guest sessions:** every browser gets an HttpOnly `bookstore_session` cookie. Guest events are recorded under it. On login or registration they are attached to the account, and the cookie is renewed on login and logout. The SPA must send requests with credentials for the cookie to work.
+- **Configuration:** the `Jwt` section in `appsettings.json`. `Jwt:SigningKey` (at least 32 characters) is required, and the API refuses to start without it. The development key lives in `appsettings.Development.json`; set a real one through the `Jwt__SigningKey` environment variable elsewhere.
+
 ### Recommendations
 
 `IRecommendationEngine` returns ranked book ids. `RecommendationService` sits in front of it and:

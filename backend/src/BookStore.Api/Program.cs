@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using BookStore.Api.Auth;
 using BookStore.Api.Infrastructure;
 using BookStore.Infrastructure;
 using BookStore.Infrastructure.Persistence;
@@ -18,7 +19,10 @@ builder.Services
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddOpenApi();
+builder.Services.AddJwtAuthentication();
+builder.Services.AddRateLimiter(RateLimits.Add);
+
+builder.Services.AddOpenApi(o => o.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddHealthChecks().AddDbContextCheck<BookStoreDbContext>();
@@ -26,7 +30,9 @@ builder.Services.AddHealthChecks().AddDbContextCheck<BookStoreDbContext>();
 builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicy, policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
     .AllowAnyHeader()
-    .AllowAnyMethod()));
+    .AllowAnyMethod()
+    // The guest session cookie must be sent with cross-origin requests from the SPA.
+    .AllowCredentials()));
 
 var app = builder.Build();
 
@@ -44,6 +50,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
+app.UseGuestSession();
+app.UseAuthentication();
+app.UseRateLimiter();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/health");

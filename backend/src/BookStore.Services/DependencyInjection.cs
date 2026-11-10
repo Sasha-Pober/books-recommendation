@@ -1,4 +1,5 @@
 using BookStore.Domain.Services;
+using BookStore.Services.Auth;
 using BookStore.Services.Authors;
 using BookStore.Services.Books;
 using BookStore.Services.Genres;
@@ -13,6 +14,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddServices(this IServiceCollection services)
     {
+        services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IBookService, BookService>();
         services.AddScoped<IAuthorService, AuthorService>();
         services.AddScoped<IGenreService, GenreService>();

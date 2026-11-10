@@ -4,7 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BookStore.Api.Controllers;
 
-/// <summary>Collects implicit feedback (views, clicks, purchases) from the frontend.</summary>
+/// <summary>
+/// Collects implicit feedback (views, wishlist, cart, purchases) from guests and signed-in users.
+/// The user comes from the JWT (if any) and the guest session from its cookie.
+/// </summary>
 [ApiController]
 [Route("api/interactions")]
 public sealed class InteractionsController(IInteractionService interactions) : ControllerBase

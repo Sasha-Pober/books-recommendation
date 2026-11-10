@@ -17,6 +17,8 @@ internal sealed class InteractionConfiguration : IEntityTypeConfiguration<Intera
         builder.HasIndex(i => new { i.UserId, i.CreatedAt });
         builder.HasIndex(i => i.BookId);
         builder.HasIndex(i => i.CreatedAt);
+        // Attaching guest events on sign-in.
+        builder.HasIndex(i => i.SessionId);
 
         // Guest events (UserId = null) keep their SessionId; deleting a user keeps the anonymized events.
         builder.HasOne<AppUser>()

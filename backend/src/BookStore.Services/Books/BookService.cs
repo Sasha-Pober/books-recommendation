@@ -1,5 +1,6 @@
 using BookStore.Domain.Entities;
 using BookStore.Domain.Exceptions;
+using BookStore.Domain.Identity;
 using BookStore.Domain.Repositories;
 using BookStore.Presentation.Books;
 using BookStore.Presentation.Common;
@@ -18,6 +19,7 @@ public interface IBookService
 
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>Creates or updates the current user's rating of the book.</summary>
     Task RateAsync(Guid bookId, RateBookRequest request, CancellationToken cancellationToken);
 }
 
@@ -29,6 +31,7 @@ internal sealed class BookService(
     ISeriesRepository series,
     IUserRepository users,
     IRatingRepository ratings,
+    ICurrentUser currentUser,
     IUnitOfWork unitOfWork) : IBookService
 {
     public async Task<PagedResult<BookDto>> SearchAsync(BookQuery query, CancellationToken cancellationToken)
@@ -91,18 +94,18 @@ internal sealed class BookService(
             throw new NotFoundException(nameof(Book), bookId);
         }
 
-        if (!await users.ExistsAsync(request.UserId, cancellationToken))
+        if (currentUser.UserId is not { } userId || !await users.ExistsAsync(userId, cancellationToken))
         {
-            throw new NotFoundException("User", request.UserId);
+            throw new UnauthorizedException("Sign in to rate books.");
         }
 
-        var rating = await ratings.GetAsync(request.UserId, bookId, cancellationToken);
+        var rating = await ratings.GetAsync(userId, bookId, cancellationToken);
         if (rating is null)
         {
             ratings.Add(new Rating
             {
                 BookId = bookId,
-                UserId = request.UserId,
+                UserId = userId,
                 Score = request.Score,
                 ReviewText = request.ReviewText,
             });

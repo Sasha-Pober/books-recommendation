@@ -1,3 +1,4 @@
+using BookStore.Domain.Identity;
 using BookStore.Domain.Repositories;
 using BookStore.Infrastructure.Identity;
 using BookStore.Infrastructure.Persistence;
@@ -5,6 +6,7 @@ using BookStore.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BookStore.Infrastructure;
 
@@ -22,11 +24,25 @@ public static class DependencyInjection
             .UseNpgsql(connectionString, npgsql => npgsql.UseVector())
             .UseSnakeCaseNamingConvention());
 
-        // Identity stores only; authentication (JWT) is configured in the API.
+        // Identity stores only; JWT validation is configured in the API.
         services
-            .AddIdentityCore<AppUser>(options => options.User.RequireUniqueEmail = true)
+            .AddIdentityCore<AppUser>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+                options.Password.RequiredLength = 8;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+            })
             .AddRoles<AppRole>()
             .AddEntityFrameworkStores<BookStoreDbContext>();
+
+        services.AddOptions<JwtOptions>()
+            .BindConfiguration(JwtOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<ITokenService, TokenService>();
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<BookStoreDbContext>());
         services.AddScoped<IBookRepository, BookRepository>();

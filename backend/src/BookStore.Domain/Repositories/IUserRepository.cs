@@ -4,6 +4,4 @@ namespace BookStore.Domain.Repositories;
 public interface IUserRepository
 {
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<Guid>> GetExistingIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 }

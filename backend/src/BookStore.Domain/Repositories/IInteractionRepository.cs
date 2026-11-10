@@ -12,4 +12,7 @@ public interface IInteractionRepository
         DateTime since, int count, IReadOnlyCollection<Guid> excludeIds, CancellationToken cancellationToken);
 
     void AddRange(IEnumerable<Interaction> interactions);
+
+    /// <summary>Attaches the guest events of a browser session to the user who has just signed in. Runs immediately.</summary>
+    Task<int> AssignGuestSessionAsync(string sessionId, Guid userId, CancellationToken cancellationToken);
 }

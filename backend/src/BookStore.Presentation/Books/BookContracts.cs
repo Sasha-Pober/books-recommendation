@@ -75,11 +75,9 @@ public sealed record UpsertBookRequest
     public Guid? SeriesId { get; init; }
 }
 
+/// <remarks>The user is taken from the JWT.</remarks>
 public sealed record RateBookRequest
 {
-    // TODO: take from the JWT once authentication is added.
-    public required Guid UserId { get; init; }
-
     [Range(Rating.MinScore, Rating.MaxScore)]
     public int Score { get; init; }
 

@@ -17,6 +17,7 @@ internal sealed class GlobalExceptionHandler(
             NotFoundException => (StatusCodes.Status404NotFound, "Resource not found"),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
             ValidationException => (StatusCodes.Status400BadRequest, "Validation failed"),
+            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred"),
         };
 

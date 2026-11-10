@@ -34,4 +34,9 @@ internal sealed class InteractionRepository(BookStoreDbContext db) : IInteractio
     }
 
     public void AddRange(IEnumerable<Interaction> interactions) => db.Interactions.AddRange(interactions);
+
+    public Task<int> AssignGuestSessionAsync(string sessionId, Guid userId, CancellationToken cancellationToken) =>
+        db.Interactions
+            .Where(i => i.SessionId == sessionId && i.UserId == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.UserId, (Guid?)userId), cancellationToken);
 }

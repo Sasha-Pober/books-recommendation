@@ -1,5 +1,6 @@
 using BookStore.Domain.Entities;
 using BookStore.Domain.Exceptions;
+using BookStore.Domain.Identity;
 using BookStore.Domain.Recommendations;
 using BookStore.Domain.Repositories;
 using BookStore.Domain.Services;
@@ -11,9 +12,8 @@ namespace BookStore.Services.Recommendations;
 
 public interface IRecommendationService
 {
-    Task<RecommendationListDto> GetForUserAsync(Guid userId, int count, CancellationToken cancellationToken);
-
-    Task<RecommendationListDto> GetPopularAsync(int count, CancellationToken cancellationToken);
+    /// <summary>Personalized list for a signed-in user, non-personalized for a guest.</summary>
+    Task<RecommendationListDto> GetHomeAsync(int count, CancellationToken cancellationToken);
 
     Task<RecommendationListDto> GetSimilarAsync(Guid bookId, int count, CancellationToken cancellationToken);
 }
@@ -24,21 +24,24 @@ public interface IRecommendationService
 /// </summary>
 internal sealed class RecommendationService(
     IBookRepository books,
-    IUserRepository users,
     IRatingRepository ratings,
     IInteractionRepository interactions,
     IRecommendationEngine engine,
     BaselineRecommendationEngine fallback,
+    ICurrentUser currentUser,
     ILogger<RecommendationService> logger) : IRecommendationService
 {
     // Ask engines for extra candidates because some get filtered out (e.g. out of stock).
     private const int CandidateMultiplier = 2;
 
-    public async Task<RecommendationListDto> GetForUserAsync(Guid userId, int count, CancellationToken cancellationToken)
+    public async Task<RecommendationListDto> GetHomeAsync(int count, CancellationToken cancellationToken)
     {
-        if (!await users.ExistsAsync(userId, cancellationToken))
+        if (currentUser.UserId is not { } userId)
         {
-            throw new NotFoundException("User", userId);
+            return await RecommendAsync(
+                (e, ct) => e.RecommendForUserAsync(null, count * CandidateMultiplier, [], ct),
+                count,
+                cancellationToken);
         }
 
         // Don't recommend books the user already bought or rated.
@@ -51,12 +54,6 @@ internal sealed class RecommendationService(
             count,
             cancellationToken);
     }
-
-    public Task<RecommendationListDto> GetPopularAsync(int count, CancellationToken cancellationToken) =>
-        RecommendAsync(
-            (e, ct) => e.RecommendForUserAsync(null, count * CandidateMultiplier, [], ct),
-            count,
-            cancellationToken);
 
     public async Task<RecommendationListDto> GetSimilarAsync(Guid bookId, int count, CancellationToken cancellationToken)
     {
