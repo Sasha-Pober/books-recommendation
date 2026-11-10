@@ -20,6 +20,9 @@ public interface IBookRepository
 
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>Ordered books can't be deleted: order history must keep pointing at them.</summary>
+    Task<bool> HasOrdersAsync(Guid id, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Guid>> GetExistingIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Guid>> GetNewestInStockIdsAsync(

@@ -1,3 +1,4 @@
+using BookStore.Domain.Common;
 using BookStore.Domain.Entities;
 using BookStore.Domain.Exceptions;
 using BookStore.Domain.Identity;
@@ -36,7 +37,27 @@ internal sealed class BookService(
 {
     public async Task<PagedResult<BookDto>> SearchAsync(BookQuery query, CancellationToken cancellationToken)
     {
-        var filter = new BookFilter(query.Search?.Trim(), query.GenreId, query.AuthorId, query.Page, query.PageSize);
+        IReadOnlyCollection<Guid>? genreIds = null;
+        if (query.GenreId is { } genreId)
+        {
+            genreIds = GenreTree.WithDescendants(await genres.GetAllAsync(cancellationToken), genreId);
+        }
+
+        var filter = new BookFilter(
+            Search: string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim(),
+            GenreIds: genreIds,
+            AuthorId: query.AuthorId,
+            PublisherId: query.PublisherId,
+            SeriesId: query.SeriesId,
+            Language: string.IsNullOrWhiteSpace(query.Language) ? null : query.Language.Trim().ToLowerInvariant(),
+            MinPrice: query.MinPrice,
+            MaxPrice: query.MaxPrice,
+            MinYear: query.MinYear,
+            MaxYear: query.MaxYear,
+            InStockOnly: query.InStockOnly,
+            Sort: query.Sort,
+            Page: query.Page,
+            PageSize: query.PageSize);
         var page = await books.SearchAsync(filter, cancellationToken);
         var summaries = await ratings.GetSummariesAsync(page.Items.Select(b => b.Id).ToList(), cancellationToken);
 
@@ -82,6 +103,12 @@ internal sealed class BookService(
     {
         var book = await books.GetForUpdateAsync(id, cancellationToken)
                    ?? throw new NotFoundException(nameof(Book), id);
+
+        if (await books.HasOrdersAsync(id, cancellationToken))
+        {
+            throw new ConflictException(
+                "The book has orders and can't be deleted. Set its stock to 0 to take it off sale.");
+        }
 
         books.Remove(book);
         await unitOfWork.SaveChangesAsync(cancellationToken);

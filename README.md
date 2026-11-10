@@ -46,6 +46,25 @@ PostgreSQL 17 with pgvector. Table names are snake_case.
 
 `books.search_vector` is a generated `tsvector` column with a GIN index. It is built from the title and annotation using the `ukrainian` text search configuration, which the initial migration creates. That configuration needs the hunspell `uk_UA` dictionary, which is baked into the custom PostgreSQL image in `infra/postgres/`.
 
+### Catalog
+
+`GET /api/books` combines search, filters, sorting and paging (`page`, `pageSize` ≤ 100):
+
+- **`search`:** Ukrainian full-text search over the title (weight A) and annotation (weight B), using the `ukrainian` configuration, so «дюну» finds «Дюна». It accepts web-search syntax (`"exact phrase"`, `-word`, `or`). A substring match on the title and author names also catches partial words («дюн») and authors.
+- **Filters:**
+  - `genreId` includes subgenres;
+  - `authorId`, `publisherId`, `seriesId`, `language`;
+  - `minPrice`/`maxPrice`, `minYear`/`maxYear`, `inStockOnly`.
+- **`sort`:** `Relevance` (the default when searching), `Title` (the default otherwise), `PriceAscending`, `PriceDescending`, `Newest`, `Year`, `Rating`. Books without a year or without ratings go last.
+
+Reference lists for the filters: `GET /api/genres` (flat, with `parentId`), `/api/authors`, `/api/publishers`, `/api/series`.
+
+Catalog management needs the `Manager` or `Admin` role:
+- `POST/PUT/DELETE /api/admin/books`;
+- `POST /api/admin/authors|genres|publishers|series`.
+
+A book that has been ordered can't be deleted (409). Set its stock to 0 instead.
+
 ### Authentication and roles
 
 ASP.NET Core Identity stores the accounts. The API is stateless and uses JWT bearer tokens.
@@ -63,7 +82,7 @@ ASP.NET Core Identity stores the accounts. The API is stateless and uses JWT bea
 - **Roles:**
   - guests (no token) can browse, record events and get recommendations;
   - `Customer` can rate books;
-  - `Manager` (and `Admin`) can create, edit and delete books, authors and genres.
+  - `Manager` (and `Admin`) manage the catalog under `/api/admin/...`.
 - **Guest sessions:** every browser gets an HttpOnly `bookstore_session` cookie. Guest events are recorded under it. On login or registration they are attached to the account, and the cookie is renewed on login and logout. The SPA must send requests with credentials for the cookie to work.
 - **Configuration:** the `Jwt` section in `appsettings.json`. `Jwt:SigningKey` (at least 32 characters) is required, and the API refuses to start without it. The development key lives in `appsettings.Development.json`; set a real one through the `Jwt__SigningKey` environment variable elsewhere.
 

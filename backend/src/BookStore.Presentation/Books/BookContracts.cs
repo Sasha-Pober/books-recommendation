@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using BookStore.Domain.Entities;
+using BookStore.Domain.Enums;
 using BookStore.Presentation.Authors;
 using BookStore.Presentation.Catalog;
 using BookStore.Presentation.Common;
@@ -25,15 +26,60 @@ public sealed record BookDto(
     double? AverageRating,
     int RatingsCount);
 
-public sealed record BookQuery : PageQuery
+public sealed record BookQuery : PageQuery, IValidatableObject
 {
-    /// <summary>Case-insensitive match on title or author name.</summary>
+    /// <summary>
+    /// Ukrainian full-text search over title and annotation (word forms are normalized, so «дюну» finds «Дюна»),
+    /// plus substring match on title and author name. Supports web-search syntax: "exact phrase", -excluded, or.
+    /// </summary>
     [MaxLength(200)]
     public string? Search { get; init; }
 
+    /// <summary>Includes subgenres: «Фантастика» also returns «Фентезі».</summary>
     public Guid? GenreId { get; init; }
 
     public Guid? AuthorId { get; init; }
+
+    public Guid? PublisherId { get; init; }
+
+    public Guid? SeriesId { get; init; }
+
+    /// <summary>ISO 639-1 code, e.g. "uk".</summary>
+    [MaxLength(10)]
+    public string? Language { get; init; }
+
+    [Range(typeof(decimal), "0", "100000")]
+    public decimal? MinPrice { get; init; }
+
+    [Range(typeof(decimal), "0", "100000")]
+    public decimal? MaxPrice { get; init; }
+
+    [Range(0, 2100)]
+    public int? MinYear { get; init; }
+
+    [Range(0, 2100)]
+    public int? MaxYear { get; init; }
+
+    public bool InStockOnly { get; init; }
+
+    /// <summary>Default: relevance when searching, otherwise title.</summary>
+    [EnumDataType(typeof(BookSort))]
+    public BookSort? Sort { get; init; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (MinPrice > MaxPrice)
+        {
+            yield return new ValidationResult(
+                "MinPrice must not exceed MaxPrice.", [nameof(MinPrice), nameof(MaxPrice)]);
+        }
+
+        if (MinYear > MaxYear)
+        {
+            yield return new ValidationResult(
+                "MinYear must not exceed MaxYear.", [nameof(MinYear), nameof(MaxYear)]);
+        }
+    }
 }
 
 public sealed record UpsertBookRequest

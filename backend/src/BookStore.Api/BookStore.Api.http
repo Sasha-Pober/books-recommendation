@@ -3,11 +3,20 @@
 ### Health
 GET {{host}}/health
 
-### Search books
-GET {{host}}/api/books?search=дюна&page=1&pageSize=10
+### Full-text search (Ukrainian word forms: «дюну» finds «Дюна»), ranked by relevance
+GET {{host}}/api/books?search=дюну&page=1&pageSize=10
 
-### Genres
+### Filters and sorting (genreId includes subgenres)
+GET {{host}}/api/books?minPrice=200&maxPrice=400&minYear=1950&inStockOnly=true&language=uk&sort=PriceAscending
+
+### Reference lists for filters
 GET {{host}}/api/genres
+
+###
+GET {{host}}/api/publishers
+
+###
+GET {{host}}/api/series
 
 ### Register a customer (guest events of this browser session are attached to the new account)
 POST {{host}}/api/auth/register
@@ -19,7 +28,7 @@ Content-Type: application/json
   "fullName": "Читач"
 }
 
-### Log in as the seeded demo customer (manager@bookstore.local / Manager123! for catalog management)
+### Log in as the seeded demo customer
 # @name login
 POST {{host}}/api/auth/login
 Content-Type: application/json
@@ -65,4 +74,36 @@ Content-Type: application/json
 
 {
   "refreshToken": "{{login.response.body.$.refreshToken}}"
+}
+
+### Log in as the demo manager (catalog management)
+# @name managerLogin
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@bookstore.local",
+  "password": "Manager123!"
+}
+
+### Create a publisher
+POST {{host}}/api/admin/publishers
+Authorization: Bearer {{managerLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "name": "Наш Формат" }
+
+### Create a book (replace the author id; GET /api/authors lists them)
+POST {{host}}/api/admin/books
+Authorization: Bearer {{managerLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Нова книга",
+  "annotation": "Коротка анотація.",
+  "language": "uk",
+  "year": 2026,
+  "price": 299,
+  "stock": 5,
+  "authorIds": ["00000000-0000-0000-0000-000000000000"]
 }
