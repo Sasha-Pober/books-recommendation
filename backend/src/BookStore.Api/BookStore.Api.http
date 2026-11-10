@@ -50,8 +50,9 @@ Content-Type: application/json
   "refreshToken": "{{login.response.body.$.refreshToken}}"
 }
 
-### Record a view (the only event type clients send; works for guests without the Authorization header)
-POST {{host}}/api/interactions
+### Record views (the only event type clients send; works for guests without the Authorization header).
+### 202 Accepted: events are written to the database in the background within about a second.
+POST {{host}}/api/events
 Authorization: Bearer {{login.response.body.$.accessToken}}
 Content-Type: application/json
 

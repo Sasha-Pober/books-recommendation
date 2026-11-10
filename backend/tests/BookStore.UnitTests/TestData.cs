@@ -9,11 +9,18 @@ namespace BookStore.UnitTests;
 
 internal static class TestData
 {
-    public static BookStoreDbContext CreateDbContext() =>
-        new(new DbContextOptionsBuilder<BookStoreDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .ReplaceService<IModelCustomizer, InMemoryModelCustomizer>()
-            .Options);
+    public static BookStoreDbContext CreateDbContext(string? databaseName = null)
+    {
+        var builder = new DbContextOptionsBuilder<BookStoreDbContext>();
+        UseInMemory(builder, databaseName ?? Guid.NewGuid().ToString());
+        return new BookStoreDbContext(builder.Options);
+    }
+
+    /// <summary>InMemory provider with the PostgreSQL-only columns removed. Same name = shared data.</summary>
+    public static void UseInMemory(DbContextOptionsBuilder builder, string databaseName) =>
+        builder
+            .UseInMemoryDatabase(databaseName)
+            .ReplaceService<IModelCustomizer, InMemoryModelCustomizer>();
 
     public static Book Book(string title, Author author, int stock = 5, params Genre[] genres) => new()
     {

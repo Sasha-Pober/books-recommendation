@@ -83,7 +83,19 @@ Placing an order runs in one transaction:
 
 If any book runs short, nothing is saved and the API returns 409.
 
-**Events:** the server records cart, wishlist, purchase and rating events itself, when those actions happen. `POST /api/interactions` accepts only `View` events from clients.
+### Events
+
+There are two paths into the `interactions` table:
+
+- **Page views** go through `POST /api/events`, which takes up to 100 `View` events per request. The request only puts the events in an in-memory queue (a bounded `System.Threading.Channels` channel, 10 000 events by default) and returns 202. It doesn't touch the database. A background writer, `InteractionBatchWriter`, saves the events:
+  - in batches of up to 500, or 1 second after the first event of a batch;
+  - after dropping events for unknown books or deleted accounts, with one query per batch;
+  - retrying temporary database errors up to 3 times; if a single event breaks a batch, the rest are saved one by one.
+
+  When the queue is full the endpoint returns 503 with `Retry-After`. There's also a limit of 300 requests per minute per IP. On shutdown the writer stops accepting events and saves everything still queued. These settings are in the `Events` section of `appsettings.json`.
+- **Cart, wishlist, purchase and rating events** are recorded by the server at the moment those actions happen, in the same transaction, so they can't be faked or counted twice.
+
+**Trade-off:** queued page views live only in memory. If the process crashes, or the database stays unavailable through the retries, those views are lost. That's acceptable for implicit feedback, but it's why purchases and ratings don't use the queue.
 
 ### Authentication and roles
 

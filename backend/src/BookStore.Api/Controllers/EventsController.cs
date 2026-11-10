@@ -1,22 +1,27 @@
+using BookStore.Api.Infrastructure;
 using BookStore.Presentation.Interactions;
 using BookStore.Services.Interactions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BookStore.Api.Controllers;
 
 /// <summary>
-/// Collects implicit feedback (views, wishlist, cart, purchases) from guests and signed-in users.
-/// The user comes from the JWT (if any) and the guest session from its cookie.
+/// Collects page-view events from guests and signed-in users. The user comes from the JWT (if any)
+/// and the guest session from its cookie. Events are written to the database in the background.
 /// </summary>
 [ApiController]
-[Route("api/interactions")]
-public sealed class InteractionsController(IInteractionService interactions) : ControllerBase
+[Route("api/events")]
+[EnableRateLimiting(RateLimits.Events)]
+public sealed class EventsController(IInteractionService interactions) : ControllerBase
 {
+    /// <summary>Accepts up to 100 events; 503 with Retry-After when the server is overloaded.</summary>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> Record(RecordInteractionsRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public IActionResult Record(RecordInteractionsRequest request)
     {
-        await interactions.RecordAsync(request, cancellationToken);
+        interactions.Record(request);
         return Accepted();
     }
 }

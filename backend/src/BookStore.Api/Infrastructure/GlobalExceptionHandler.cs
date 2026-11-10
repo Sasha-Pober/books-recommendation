@@ -18,6 +18,7 @@ internal sealed class GlobalExceptionHandler(
             ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
             ValidationException => (StatusCodes.Status400BadRequest, "Validation failed"),
             UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            ServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Service unavailable"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred"),
         };
 
@@ -27,6 +28,11 @@ internal sealed class GlobalExceptionHandler(
         }
 
         httpContext.Response.StatusCode = status;
+        if (exception is ServiceUnavailableException unavailable)
+        {
+            httpContext.Response.Headers.RetryAfter = ((int)unavailable.RetryAfter.TotalSeconds).ToString();
+        }
+
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,

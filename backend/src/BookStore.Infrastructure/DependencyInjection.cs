@@ -1,5 +1,7 @@
 using BookStore.Domain.Identity;
 using BookStore.Domain.Repositories;
+using BookStore.Domain.Services;
+using BookStore.Infrastructure.Events;
 using BookStore.Infrastructure.Identity;
 using BookStore.Infrastructure.Persistence;
 using BookStore.Infrastructure.Persistence.Repositories;
@@ -56,6 +58,15 @@ public static class DependencyInjection
         services.AddScoped<ICartRepository, CartRepository>();
         services.AddScoped<IWishlistRepository, WishlistRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
+
+        services.AddOptions<EventQueueOptions>()
+            .BindConfiguration(EventQueueOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<ChannelInteractionQueue>();
+        services.AddSingleton<IInteractionQueue>(sp => sp.GetRequiredService<ChannelInteractionQueue>());
+        services.AddScoped<InteractionBatchStore>();
+        services.AddHostedService<InteractionBatchWriter>();
 
         services.AddScoped<DatabaseInitializer>();
 

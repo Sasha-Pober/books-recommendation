@@ -153,10 +153,6 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
     public Task<bool> HasOrdersAsync(Guid id, CancellationToken cancellationToken) =>
         db.OrderItems.AnyAsync(i => i.BookId == id, cancellationToken);
 
-    public async Task<IReadOnlyList<Guid>> GetExistingIdsAsync(
-        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
-        await db.Books.Where(b => ids.Contains(b.Id)).Select(b => b.Id).ToListAsync(cancellationToken);
-
     public async Task<IReadOnlyList<Guid>> GetNewestInStockIdsAsync(
         int count, IReadOnlyCollection<Guid> excludeIds, CancellationToken cancellationToken) =>
         await db.Books
