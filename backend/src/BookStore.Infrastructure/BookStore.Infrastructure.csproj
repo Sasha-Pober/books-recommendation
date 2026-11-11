@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="BookStore.UnitTests" />
+    <InternalsVisibleTo Include="BookStore.IntegrationTests" />
   </ItemGroup>
 
 </Project>

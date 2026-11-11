@@ -7,9 +7,9 @@ using Microsoft.Extensions.Time.Testing;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-namespace BookStore.UnitTests.Auth;
+namespace BookStore.IntegrationTests.Infrastructure;
 
-public class TokenServiceTests
+public class TokenServiceTests(PostgresFixture fixture) : PostgresTest(fixture)
 {
     private readonly JwtOptions _options = new()
     {
@@ -23,7 +23,7 @@ public class TokenServiceTests
     [Fact]
     public async Task AccessToken_IsValidJwt_WithUserClaims()
     {
-        await using var db = TestData.CreateDbContext();
+        await using var db = Fixture.CreateDbContext();
         var user = new UserAccount(Guid.NewGuid(), "a@b.c", "Reader", [Roles.Customer, Roles.Manager]);
 
         var token = CreateService(db).CreateAccessToken(user);
@@ -47,8 +47,8 @@ public class TokenServiceTests
     [Fact]
     public async Task RefreshToken_IsSingleUse()
     {
-        await using var db = TestData.CreateDbContext();
-        var userId = Guid.NewGuid();
+        await using var db = Fixture.CreateDbContext();
+        var userId = (await TestData.AddUserAsync(db)).Id;
         var service = CreateService(db);
         var refresh = await service.CreateRefreshTokenAsync(userId, CancellationToken.None);
         await db.SaveChangesAsync();
@@ -61,8 +61,8 @@ public class TokenServiceTests
     [Fact]
     public async Task ReusingRotatedToken_RevokesAllTokensOfTheUser()
     {
-        await using var db = TestData.CreateDbContext();
-        var userId = Guid.NewGuid();
+        await using var db = Fixture.CreateDbContext();
+        var userId = (await TestData.AddUserAsync(db)).Id;
         var service = CreateService(db);
         var first = await service.CreateRefreshTokenAsync(userId, CancellationToken.None);
         await db.SaveChangesAsync();
@@ -80,9 +80,9 @@ public class TokenServiceTests
     [Fact]
     public async Task ExpiredRefreshToken_IsRejected()
     {
-        await using var db = TestData.CreateDbContext();
+        await using var db = Fixture.CreateDbContext();
         var service = CreateService(db);
-        var refresh = await service.CreateRefreshTokenAsync(Guid.NewGuid(), CancellationToken.None);
+        var refresh = await service.CreateRefreshTokenAsync((await TestData.AddUserAsync(db)).Id, CancellationToken.None);
         await db.SaveChangesAsync();
 
         _time.Advance(TimeSpan.FromDays(15));
@@ -93,8 +93,8 @@ public class TokenServiceTests
     [Fact]
     public async Task OnlyTokenHash_IsStored()
     {
-        await using var db = TestData.CreateDbContext();
-        var refresh = await CreateService(db).CreateRefreshTokenAsync(Guid.NewGuid(), CancellationToken.None);
+        await using var db = Fixture.CreateDbContext();
+        var refresh = await CreateService(db).CreateRefreshTokenAsync((await TestData.AddUserAsync(db)).Id, CancellationToken.None);
         await db.SaveChangesAsync();
 
         var stored = Assert.Single(db.RefreshTokens);

@@ -605,6 +605,29 @@ namespace BookStore.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("RoleNameIndex");
 
                     b.ToTable("roles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("01990000-0000-7000-8000-00000000c001"),
+                            ConcurrencyStamp = "01990000-0000-7000-8000-00000000c001",
+                            Name = "Customer",
+                            NormalizedName = "CUSTOMER"
+                        },
+                        new
+                        {
+                            Id = new Guid("01990000-0000-7000-8000-00000000c002"),
+                            ConcurrencyStamp = "01990000-0000-7000-8000-00000000c002",
+                            Name = "Manager",
+                            NormalizedName = "MANAGER"
+                        },
+                        new
+                        {
+                            Id = new Guid("01990000-0000-7000-8000-00000000c003"),
+                            ConcurrencyStamp = "01990000-0000-7000-8000-00000000c003",
+                            Name = "Admin",
+                            NormalizedName = "ADMIN"
+                        });
                 });
 
             modelBuilder.Entity("BookStore.Infrastructure.Identity.AppUser", b =>

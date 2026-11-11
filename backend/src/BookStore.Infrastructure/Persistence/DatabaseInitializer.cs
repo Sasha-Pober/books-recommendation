@@ -7,11 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace BookStore.Infrastructure.Persistence;
 
-/// <summary>Applies migrations and seeds roles, demo accounts and a demo catalog. Intended for development.</summary>
+/// <summary>Applies migrations and seeds demo accounts and a demo catalog. Intended for development.</summary>
 public sealed class DatabaseInitializer(
     BookStoreDbContext db,
     UserManager<AppUser> userManager,
-    RoleManager<AppRole> roleManager,
     ILogger<DatabaseInitializer> logger)
 {
     /// <summary>Demo accounts (email, password, role). Development only.</summary>
@@ -26,7 +25,7 @@ public sealed class DatabaseInitializer(
     {
         await db.Database.MigrateAsync(cancellationToken);
 
-        await SeedRolesAsync();
+        // Roles come from a migration (AppRoleConfiguration).
         await SeedUsersAsync();
 
         if (!await db.Books.AnyAsync(cancellationToken))
@@ -34,17 +33,6 @@ public sealed class DatabaseInitializer(
             logger.LogInformation("Seeding demo catalog");
             SeedCatalog();
             await db.SaveChangesAsync(cancellationToken);
-        }
-    }
-
-    private async Task SeedRolesAsync()
-    {
-        foreach (var role in Roles.All)
-        {
-            if (!await roleManager.RoleExistsAsync(role))
-            {
-                EnsureSucceeded(await roleManager.CreateAsync(new AppRole { Name = role }), $"create role {role}");
-            }
         }
     }
 
