@@ -30,9 +30,12 @@ public static class DependencyInjection
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IRecommendationService, RecommendationService>();
 
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<RecommendationCollectionBuilder>();
         services.AddScoped<BaselineRecommendationEngine>();
-        // Default engine; Infrastructure can register the ML-service client instead.
+        // Default engine; Infrastructure registers the recommendation service client instead when it is configured.
         services.TryAddScoped<IRecommendationEngine>(sp => sp.GetRequiredService<BaselineRecommendationEngine>());
+        services.AddHostedService<RecommendationCollectionRefresher>();
 
         return services;
     }

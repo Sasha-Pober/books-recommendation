@@ -98,12 +98,28 @@ Content-Type: application/json
 ### Reviews of a book
 GET {{host}}/api/books/00000000-0000-0000-0000-000000000000/ratings
 
-### Recommendations: personalized when signed in, popular for guests
+### Recommendations: personalized when signed in; bestsellers + new releases while the ML service is off
+# @name home
 GET {{host}}/api/recommendations/home?count=10
 Authorization: Bearer {{login.response.body.$.accessToken}}
 
+### Report a click on the first recommendation (a View event with its logId)
+POST {{host}}/api/events
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "events": [
+    {
+      "bookId": "{{home.response.body.$.items[0].book.id}}",
+      "type": "View",
+      "recommendationLogId": {{home.response.body.$.items[0].logId}}
+    }
+  ]
+}
+
 ### Similar books (replace id)
-GET {{host}}/api/recommendations/books/00000000-0000-0000-0000-000000000000/similar?count=5
+GET {{host}}/api/books/00000000-0000-0000-0000-000000000000/similar?count=5
 
 ### Log out (revokes the refresh token)
 POST {{host}}/api/auth/logout

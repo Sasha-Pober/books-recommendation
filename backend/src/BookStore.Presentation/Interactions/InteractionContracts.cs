@@ -14,6 +14,13 @@ public sealed record InteractionEvent
     /// </summary>
     [EnumDataType(typeof(InteractionType))]
     public required InteractionType Type { get; init; }
+
+    /// <summary>
+    /// <c>logId</c> of the recommendation the user clicked to open this book, if any;
+    /// marks that recommendation as clicked.
+    /// </summary>
+    [Range(1, long.MaxValue)]
+    public long? RecommendationLogId { get; init; }
 }
 
 /// <summary>The frontend batches events and sends them together.</summary>

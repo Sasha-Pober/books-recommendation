@@ -1,4 +1,4 @@
-using BookStore.Domain.Entities;
+using BookStore.Domain.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,7 +23,7 @@ internal sealed class InteractionBatchWriter(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var reader = queue.Reader;
-        var batch = new List<Interaction>(_options.BatchSize);
+        var batch = new List<QueuedView>(_options.BatchSize);
 
         try
         {
@@ -35,9 +35,9 @@ internal sealed class InteractionBatchWriter(
                 {
                     while (batch.Count < _options.BatchSize)
                     {
-                        if (reader.TryRead(out var interaction))
+                        if (reader.TryRead(out var view))
                         {
-                            batch.Add(interaction);
+                            batch.Add(view);
                         }
                         else if (!await reader.WaitToReadAsync(flushTimer.Token))
                         {
@@ -59,9 +59,9 @@ internal sealed class InteractionBatchWriter(
         }
 
         queue.Complete();
-        while (reader.TryRead(out var interaction))
+        while (reader.TryRead(out var view))
         {
-            batch.Add(interaction);
+            batch.Add(view);
             if (batch.Count >= _options.BatchSize)
             {
                 await FlushAsync(batch);
@@ -73,7 +73,7 @@ internal sealed class InteractionBatchWriter(
     }
 
     /// <summary>Writes and clears the batch. Not cancellable, so shutdown never abandons a batch mid-write.</summary>
-    private async Task FlushAsync(List<Interaction> batch)
+    private async Task FlushAsync(List<QueuedView> batch)
     {
         if (batch.Count == 0)
         {

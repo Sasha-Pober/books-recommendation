@@ -2,8 +2,10 @@ using BookStore.Api.Auth;
 using BookStore.Presentation.Books;
 using BookStore.Presentation.Common;
 using BookStore.Presentation.Ratings;
+using BookStore.Presentation.Recommendations;
 using BookStore.Services.Books;
 using BookStore.Services.Ratings;
+using BookStore.Services.Recommendations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,7 +14,10 @@ namespace BookStore.Api.Controllers;
 /// <summary>Public catalog. Management is in <see cref="AdminBooksController"/>.</summary>
 [ApiController]
 [Route("api/books")]
-public sealed class BooksController(IBookService books, IRatingService ratings) : ControllerBase
+public sealed class BooksController(
+    IBookService books,
+    IRatingService ratings,
+    IRecommendationService recommendations) : ControllerBase
 {
     /// <summary>Search, filter, sort and page the catalog.</summary>
     [HttpGet]
@@ -22,6 +27,12 @@ public sealed class BooksController(IBookService books, IRatingService ratings) 
     [HttpGet("{id:guid}")]
     public Task<BookDto> GetById(Guid id, CancellationToken cancellationToken) =>
         books.GetByIdAsync(id, cancellationToken);
+
+    /// <summary>"Similar books" for the book page.</summary>
+    [HttpGet("{id:guid}/similar")]
+    public Task<RecommendationListDto> GetSimilar(
+        Guid id, [FromQuery] RecommendationQuery query, CancellationToken cancellationToken) =>
+        recommendations.GetSimilarAsync(id, query.Count, cancellationToken);
 
     /// <summary>Ratings and reviews of the book, newest first.</summary>
     [HttpGet("{id:guid}/ratings")]

@@ -32,7 +32,10 @@ public interface IBookRepository
     Task<IReadOnlyList<Guid>> GetNewestInStockIdsAsync(
         int count, IReadOnlyCollection<Guid> excludeIds, CancellationToken cancellationToken);
 
-    /// <summary>In-stock books sharing an author (weight 2) or genres (1 per shared genre).</summary>
+    /// <summary>
+    /// In-stock books sharing an author (weight 2, reason <see cref="RecommendationReason.SameAuthor"/>)
+    /// or genres (1 per shared genre, reason <see cref="RecommendationReason.SimilarContent"/>).
+    /// </summary>
     Task<IReadOnlyList<ScoredBook>> FindSimilarByMetadataAsync(
         Guid bookId, int count, IReadOnlyCollection<Guid> excludeIds, CancellationToken cancellationToken);
 

@@ -1,5 +1,6 @@
 using BookStore.Domain.Entities;
 using BookStore.Domain.Enums;
+using BookStore.Domain.Services;
 using BookStore.Infrastructure.Events;
 using BookStore.Infrastructure.Identity;
 using BookStore.Infrastructure.Persistence;
@@ -37,10 +38,10 @@ public class EventPipelineTests
 
         var batch = new[]
         {
-            Interaction.Create(user.Id, "s", book.Id, InteractionType.View),
-            Interaction.Create(null, "s", book.Id, InteractionType.View),
-            Interaction.Create(null, "s", Guid.NewGuid(), InteractionType.View),     // unknown book
-            Interaction.Create(Guid.NewGuid(), "s", book.Id, InteractionType.View),  // deleted account
+            View(user.Id, book.Id),
+            View(null, book.Id),
+            View(null, Guid.NewGuid()),     // unknown book
+            View(Guid.NewGuid(), book.Id),  // deleted account
         };
 
         var saved = await new InteractionBatchStore(db, NullLogger<InteractionBatchStore>.Instance)
@@ -49,6 +50,37 @@ public class EventPipelineTests
         Assert.Equal(2, saved);
         await using var check = TestData.CreateDbContext(_databaseName);
         Assert.Equal(2, check.Interactions.Count());
+    }
+
+    [Fact]
+    public async Task Store_MarksRecommendationClicked_OnlyForTheSameUserAndBook()
+    {
+        await using var db = TestData.CreateDbContext(_databaseName);
+        var author = new Author { FullName = "Френк Герберт" };
+        var dune = TestData.Book("Дюна", author);
+        var messiah = TestData.Book("Месія Дюни", author);
+        var user = new AppUser { UserName = "a@b.c", Email = "a@b.c", FullName = "Reader" };
+        db.Books.AddRange(dune, messiah);
+        db.Users.Add(user);
+        var shownToUser = new RecommendationLog { UserId = user.Id, BookId = dune.Id, Placement = RecommendationPlacement.Home };
+        var shownToGuest = new RecommendationLog { BookId = dune.Id, Placement = RecommendationPlacement.Home };
+        var otherBook = new RecommendationLog { UserId = user.Id, BookId = messiah.Id, Placement = RecommendationPlacement.Home };
+        db.RecommendationLogs.AddRange(shownToUser, shownToGuest, otherBook);
+        await db.SaveChangesAsync();
+
+        await new InteractionBatchStore(db, NullLogger<InteractionBatchStore>.Instance).SaveAsync(
+            [
+                View(user.Id, dune.Id, shownToUser.Id),   // valid click
+                View(user.Id, dune.Id, shownToGuest.Id),  // log of another viewer
+                View(user.Id, dune.Id, otherBook.Id),     // log of another book
+            ],
+            CancellationToken.None);
+
+        await using var check = TestData.CreateDbContext(_databaseName);
+        Assert.True(check.RecommendationLogs.Single(l => l.Id == shownToUser.Id).Clicked);
+        Assert.False(check.RecommendationLogs.Single(l => l.Id == shownToGuest.Id).Clicked);
+        Assert.False(check.RecommendationLogs.Single(l => l.Id == otherBook.Id).Clicked);
+        Assert.Equal(3, check.Interactions.Count());
     }
 
     [Fact]
@@ -113,8 +145,11 @@ public class EventPipelineTests
         return db.Interactions.Count();
     }
 
-    private static List<Interaction> Views(Guid bookId, int count) =>
-        Enumerable.Range(0, count).Select(_ => Interaction.Create(null, "s", bookId, InteractionType.View)).ToList();
+    private static List<QueuedView> Views(Guid bookId, int count) =>
+        Enumerable.Range(0, count).Select(_ => View(null, bookId)).ToList();
+
+    private static QueuedView View(Guid? userId, Guid bookId, long? recommendationLogId = null) =>
+        new(Interaction.Create(userId, "s", bookId, InteractionType.View), recommendationLogId);
 
     private static async Task WaitForAsync(Func<bool> condition)
     {

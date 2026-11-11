@@ -1,5 +1,6 @@
 using BookStore.Domain.Entities;
 using BookStore.Domain.Enums;
+using BookStore.Domain.Recommendations;
 using BookStore.Infrastructure.Persistence.Repositories;
 
 namespace BookStore.UnitTests.Infrastructure;
@@ -43,6 +44,34 @@ public class RecommendationQueriesTests
 
         var result = await new BookRepository(db).FindSimilarByMetadataAsync(hobbit.Id, 10, [], CancellationToken.None);
 
-        Assert.Equal([lotr.Id, earthsea.Id], result.Select(r => r.BookId));
+        Assert.Equal(
+            [(lotr.Id, RecommendationReason.SameAuthor), (earthsea.Id, RecommendationReason.SimilarContent)],
+            result.Select(r => (r.BookId, r.Reason!.Value)));
+    }
+
+    [Fact]
+    public async Task GetBestsellers_CountsCopiesSold_IgnoringCancelledAndOldOrders()
+    {
+        await using var db = TestData.CreateDbContext();
+        var author = new Author { FullName = "Author" };
+        var popular = TestData.Book("Popular", author);
+        var less = TestData.Book("Less", author);
+        var cancelledOnly = TestData.Book("Cancelled", author);
+        db.Books.AddRange(popular, less, cancelledOnly);
+        var userId = Guid.NewGuid();
+        var cancelled = Order.Place(userId, [(cancelledOnly.Id, 10, 1m)]);
+        cancelled.Status = OrderStatus.Cancelled;
+        db.Orders.AddRange(
+            Order.Place(userId, [(popular.Id, 3, 1m), (less.Id, 1, 1m)]),
+            Order.Place(userId, [(popular.Id, 1, 1m)]),
+            cancelled);
+        await db.SaveChangesAsync();
+
+        var result = await new OrderRepository(db).GetBestsellersAsync(
+            DateTime.UtcNow.AddDays(-1), 10, CancellationToken.None);
+
+        Assert.Equal([(popular.Id, 4.0), (less.Id, 1.0)], result.Select(r => (r.BookId, r.Score)));
+        Assert.Empty(await new OrderRepository(db).GetBestsellersAsync(
+            DateTime.UtcNow.AddDays(1), 10, CancellationToken.None));
     }
 }

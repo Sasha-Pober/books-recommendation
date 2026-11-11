@@ -120,13 +120,49 @@ ASP.NET Core Identity stores the accounts. The API is stateless and uses JWT bea
 
 ### Recommendations
 
-`IRecommendationEngine` returns ranked book ids. `RecommendationService` sits in front of it and:
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/recommendations/home` | "Recommended for you": personalized when signed in; for guests, based on the session's views |
+| `GET /api/books/{id}/similar` | "Similar books" on the book page |
 
-- removes books the user already bought or rated, and books that are out of stock;
-- enriches the ids with book data;
-- falls back to `BaselineRecommendationEngine` (popularity plus author/genre similarity) if the primary engine fails or returns nothing.
+Each item has a `reason`, a Ukrainian `explanation` (e.g. «Схожа на книги, які ви переглядали», «Бестселер»), and a `logId`. The list reports its `source` (`ml` or `baseline`) and the `modelVersionId`.
 
-For now the baseline engine is the primary engine. The Python neural-network service will plug in as another `IRecommendationEngine` implementation.
+**Engines.** `RecommendationService` asks the primary `IRecommendationEngine` first.
+- **Python service:** when `RecommendationService:BaseUrl` is set, the primary engine is `RecommendationServiceClient`, the client of the Python service.
+  - **Timeout:** 80 ms per call.
+  - **Circuit breaker:** after 50% failures among at least 10 calls in 30 s, the service isn't called for 15 s.
+  - **No retries:** there's no time for them within the 100 ms budget.
+- **Fallback:** if the call fails, times out or returns nothing, `BaselineRecommendationEngine` answers instead:
+  - home: bestsellers (copies sold in 90 days, padded with books trending by events) interleaved with new releases;
+  - similar books: shared authors and genres.
+- **Without a `BaseUrl`,** the baseline is the only engine.
+
+**Collections cache.** Bestsellers and new releases are precomputed every 10 minutes by `RecommendationCollectionRefresher` and kept in Redis (`ConnectionStrings:Redis`) for 1 hour.
+- **Without Redis:** an in-memory cache is used instead.
+- **Redis down:** reads count as cache misses, and the collections are computed from the database.
+
+**After filtering:**
+1. Books the user bought or rated, and out-of-stock books, are removed.
+2. Every shown item is written to `recommendation_logs` (placement, position, model version). If logging fails, the recommendations are still returned.
+3. When the user opens a recommended book, the frontend sends a `View` event with that item's `recommendationLogId`, and the log entry is marked `clicked`. Only a log shown to the same user and for the same book counts. CTR is computed from these logs.
+
+### Recommendation service contract (Python, FastAPI)
+
+The API calls the service over the internal network with the `X-Service-Key: <RecommendationService:ServiceKey>` header. JSON is snake_case.
+
+```
+POST /v1/recommendations/home
+{"user_id": "uuid | null", "session_id": "string", "count": 20, "exclude_book_ids": ["uuid"]}
+
+POST /v1/recommendations/similar
+{"book_id": "uuid", "count": 10, "exclude_book_ids": ["uuid"]}
+
+200 → {"model_version_id": 3, "items": [{"book_id": "uuid", "score": 0.91, "reason": "similar_to_viewed"}]}
+```
+
+- **`reason`:** one of `similar_to_viewed`, `liked_by_similar_readers`, `new_from_favorite_author`, `bestseller`, `trending`, `new_release`, `same_author`, `similar_content`. An unknown reason only removes the explanation; the book is kept.
+- **`model_version_id`:** must exist in `model_versions`, otherwise the impressions aren't logged.
+- **Errors:** any non-2xx status or a slow response triggers the fallback.
 
 ## Running locally
 
@@ -135,7 +171,7 @@ Requirements: Docker. The .NET 10 SDK is needed only to run the API outside Dock
 ### Everything in Docker
 
 ```bash
-docker compose up -d --build   # PostgreSQL + API
+docker compose up -d --build   # PostgreSQL + Redis + API
 ```
 
 The API container runs in `Development` mode. On startup it applies migrations and seeds roles, demo accounts and a demo Ukrainian catalog. Database credentials come from `.env` (copy `.env.example`), or default to `bookstore`.

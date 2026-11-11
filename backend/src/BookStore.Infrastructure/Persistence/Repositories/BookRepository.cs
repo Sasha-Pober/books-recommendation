@@ -189,14 +189,20 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
             .Select(b => new
             {
                 b.Id,
-                Score = (b.Authors.Any(a => authorIds.Contains(a.Id)) ? 2.0 : 0.0)
-                        + b.Genres.Count(g => genreIds.Contains(g.Id)),
+                SameAuthor = b.Authors.Any(a => authorIds.Contains(a.Id)),
+                SharedGenres = b.Genres.Count(g => genreIds.Contains(g.Id)),
             })
-            .OrderByDescending(x => x.Score)
+            .OrderByDescending(x => (x.SameAuthor ? 2 : 0) + x.SharedGenres)
+            .ThenBy(x => x.Id)
             .Take(count)
             .ToListAsync(cancellationToken);
 
-        return similar.Select(x => new ScoredBook(x.Id, x.Score)).ToList();
+        return similar
+            .Select(x => new ScoredBook(
+                x.Id,
+                (x.SameAuthor ? 2.0 : 0.0) + x.SharedGenres,
+                x.SameAuthor ? RecommendationReason.SameAuthor : RecommendationReason.SimilarContent))
+            .ToList();
     }
 
     public void Add(Book book) => db.Books.Add(book);

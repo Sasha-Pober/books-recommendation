@@ -1,39 +1,70 @@
 using BookStore.Domain.Recommendations;
 using BookStore.Domain.Repositories;
 using BookStore.Domain.Services;
+using Microsoft.Extensions.Logging;
 
 namespace BookStore.Services.Recommendations;
 
 /// <summary>
-/// Non-ML baseline: recent popularity for user recommendations and author/genre overlap
-/// for similar books. Serves as the fallback when the ML service is unavailable.
+/// Non-ML engine and the fallback when the recommendation service is unavailable:
+/// "Recommended for you" interleaves bestsellers and new releases (precomputed, cached in Redis);
+/// "Similar books" uses shared authors and genres.
 /// </summary>
 public sealed class BaselineRecommendationEngine(
+    IRecommendationCollectionCache cache,
+    RecommendationCollectionBuilder builder,
     IBookRepository books,
-    IInteractionRepository interactions) : IRecommendationEngine
+    ILogger<BaselineRecommendationEngine> logger) : IRecommendationEngine
 {
-    private static readonly TimeSpan PopularityWindow = TimeSpan.FromDays(90);
-
     public string Name => "baseline";
 
-    public async Task<IReadOnlyList<ScoredBook>> RecommendForUserAsync(
-        Guid? userId, int count, IReadOnlyCollection<Guid> excludeBookIds, CancellationToken cancellationToken)
+    public async Task<RecommendationResult> RecommendAsync(
+        HomeRecommendationRequest request, CancellationToken cancellationToken)
     {
-        var popular = await interactions.GetPopularBooksAsync(
-            DateTime.UtcNow - PopularityWindow, count, excludeBookIds, cancellationToken);
-        if (popular.Count >= count)
-        {
-            return popular;
-        }
+        var bestsellers = await GetCollectionAsync(RecommendationCollection.Bestsellers, cancellationToken);
+        var newReleases = await GetCollectionAsync(RecommendationCollection.NewReleases, cancellationToken);
 
-        // Not enough interaction data yet (cold start): pad with the newest books.
-        var excluded = excludeBookIds.Concat(popular.Select(p => p.BookId)).ToList();
-        var newest = await books.GetNewestInStockIdsAsync(count - popular.Count, excluded, cancellationToken);
+        var excluded = request.ExcludeBookIds.ToHashSet();
+        var items = Interleave(bestsellers, newReleases)
+            .Where(b => excluded.Add(b.BookId))
+            .Take(request.Count)
+            .ToList();
 
-        return [.. popular, .. newest.Select(id => new ScoredBook(id, 0))];
+        return new RecommendationResult(items);
     }
 
-    public Task<IReadOnlyList<ScoredBook>> FindSimilarAsync(
+    public async Task<RecommendationResult> FindSimilarAsync(
         Guid bookId, int count, IReadOnlyCollection<Guid> excludeBookIds, CancellationToken cancellationToken) =>
-        books.FindSimilarByMetadataAsync(bookId, count, excludeBookIds, cancellationToken);
+        new(await books.FindSimilarByMetadataAsync(bookId, count, excludeBookIds, cancellationToken));
+
+    /// <summary>From the cache; on a miss (or cache outage) computed from the database and cached again.</summary>
+    private async Task<IReadOnlyList<ScoredBook>> GetCollectionAsync(
+        RecommendationCollection collection, CancellationToken cancellationToken)
+    {
+        if (await cache.GetAsync(collection, cancellationToken) is { } cached)
+        {
+            return cached;
+        }
+
+        logger.LogInformation("Collection {Collection} not cached; computing it", collection);
+        var items = await builder.BuildAsync(collection, cancellationToken);
+        await cache.SetAsync(collection, items, cancellationToken);
+        return items;
+    }
+
+    private static IEnumerable<ScoredBook> Interleave(IReadOnlyList<ScoredBook> first, IReadOnlyList<ScoredBook> second)
+    {
+        for (var i = 0; i < Math.Max(first.Count, second.Count); i++)
+        {
+            if (i < first.Count)
+            {
+                yield return first[i];
+            }
+
+            if (i < second.Count)
+            {
+                yield return second[i];
+            }
+        }
+    }
 }

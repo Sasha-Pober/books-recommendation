@@ -21,6 +21,19 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: bookstore-redis
+    # Cache only (precomputed recommendation collections): no persistence needed.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: ./backend
@@ -30,10 +43,17 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__BookStore: >-
         Host=postgres;Port=5432;Database=${POSTGRES_DB:-bookstore};Username=${POSTGRES_USER:-bookstore};Password=${POSTGRES_PASSWORD:-bookstore}
+      # Short timeouts: when Redis is down the API falls back to the database quickly.
+      ConnectionStrings__Redis: redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=200,syncTimeout=200
+      # Set when the Python recommendation service is added; until then the built-in baseline is used.
+      # RecommendationService__BaseUrl: http://recsys:8000/
+      # RecommendationService__ServiceKey: ${RECSYS_SERVICE_KEY}
     ports:
       - "5292:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

@@ -31,11 +31,11 @@ internal sealed class InteractionService(IInteractionQueue queue, ICurrentUser c
 
         var userId = currentUser.UserId;
         var sessionId = currentUser.SessionId;
-        var interactions = request.Events
-            .Select(e => Interaction.Create(userId, sessionId, e.BookId, e.Type))
+        var views = request.Events
+            .Select(e => new QueuedView(Interaction.Create(userId, sessionId, e.BookId, e.Type), e.RecommendationLogId))
             .ToList();
 
-        if (!queue.TryEnqueue(interactions))
+        if (!queue.TryEnqueue(views))
         {
             throw new ServiceUnavailableException("Too many events right now; retry later.", RetryAfter);
         }

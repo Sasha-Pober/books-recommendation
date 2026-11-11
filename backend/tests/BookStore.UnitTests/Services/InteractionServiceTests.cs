@@ -1,4 +1,3 @@
-using BookStore.Domain.Entities;
 using BookStore.Domain.Enums;
 using BookStore.Domain.Exceptions;
 using BookStore.Domain.Identity;
@@ -35,9 +34,27 @@ public class InteractionServiceTests
 
         CreateService().Record(Request(InteractionType.View, InteractionType.View));
 
-        _queue.Received(1).TryEnqueue(Arg.Is<IReadOnlyCollection<Interaction>>(events =>
-            events.Count == 2
-            && events.All(e => e.UserId == userId && e.SessionId == "session-1" && e.Weight == 0.2)));
+        _queue.Received(1).TryEnqueue(Arg.Is<IReadOnlyCollection<QueuedView>>(views =>
+            views.Count == 2
+            && views.All(v => v.Interaction.UserId == userId
+                              && v.Interaction.SessionId == "session-1"
+                              && v.Interaction.Weight == 0.2)));
+    }
+
+    [Fact]
+    public void Record_PassesTheClickedRecommendationLogId()
+    {
+        _currentUser.SessionId.Returns("session-1");
+        _queue.TryEnqueue(default!).ReturnsForAnyArgs(true);
+        var request = new RecordInteractionsRequest
+        {
+            Events = [new InteractionEvent { BookId = Guid.NewGuid(), Type = InteractionType.View, RecommendationLogId = 42 }],
+        };
+
+        CreateService().Record(request);
+
+        _queue.Received(1).TryEnqueue(Arg.Is<IReadOnlyCollection<QueuedView>>(views =>
+            views.Single().RecommendationLogId == 42));
     }
 
     [Fact]

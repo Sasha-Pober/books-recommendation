@@ -5,10 +5,14 @@ using BookStore.Infrastructure.Events;
 using BookStore.Infrastructure.Identity;
 using BookStore.Infrastructure.Persistence;
 using BookStore.Infrastructure.Persistence.Repositories;
+using BookStore.Infrastructure.Recommendations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
+using Polly;
 
 namespace BookStore.Infrastructure;
 
@@ -58,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<ICartRepository, CartRepository>();
         services.AddScoped<IWishlistRepository, WishlistRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IRecommendationLogRepository, RecommendationLogRepository>();
 
         services.AddOptions<EventQueueOptions>()
             .BindConfiguration(EventQueueOptions.SectionName)
@@ -68,8 +73,69 @@ public static class DependencyInjection
         services.AddScoped<InteractionBatchStore>();
         services.AddHostedService<InteractionBatchWriter>();
 
+        AddRecommendations(services, configuration);
+
         services.AddScoped<DatabaseInitializer>();
 
         return services;
+    }
+
+    private static void AddRecommendations(IServiceCollection services, IConfiguration configuration)
+    {
+        // Non-personalized collections: Redis shared by all API instances, or process memory without Redis.
+        var redis = configuration.GetConnectionString("Redis");
+        if (string.IsNullOrWhiteSpace(redis))
+        {
+            services.AddDistributedMemoryCache();
+        }
+        else
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redis;
+                options.InstanceName = "bookstore:";
+            });
+        }
+
+        services.AddSingleton<IRecommendationCollectionCache, RecommendationCollectionCache>();
+
+        var section = configuration.GetSection(RecommendationServiceOptions.SectionName);
+        services.AddOptions<RecommendationServiceOptions>()
+            .Bind(section)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        if (section.Get<RecommendationServiceOptions>()?.BaseUrl is null)
+        {
+            return; // The baseline engine registered by the Services layer stays the primary engine.
+        }
+
+        services
+            .AddHttpClient<RecommendationServiceClient>((sp, http) =>
+            {
+                var options = sp.GetRequiredService<IOptions<RecommendationServiceOptions>>().Value;
+                http.BaseAddress = options.BaseUrl;
+                http.DefaultRequestHeaders.Add(RecommendationServiceClient.ServiceKeyHeader, options.ServiceKey);
+                http.Timeout = Timeout.InfiniteTimeSpan; // Enforced by the resilience pipeline.
+            })
+            .AddResilienceHandler("recommendation-service", (pipeline, context) =>
+            {
+                var options = context.ServiceProvider.GetRequiredService<IOptions<RecommendationServiceOptions>>().Value;
+
+                // No retries: there is no time for them within 100 ms; the caller falls back instead.
+                // The circuit breaker is outermost, so timeouts count as failures: while it is open,
+                // requests go straight to the fallback instead of waiting for the timeout.
+                pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+                {
+                    FailureRatio = options.FailureRatio,
+                    MinimumThroughput = options.MinimumThroughput,
+                    SamplingDuration = options.SamplingDuration,
+                    BreakDuration = options.BreakDuration,
+                });
+                pipeline.AddTimeout(options.Timeout);
+            });
+
+        services.Replace(ServiceDescriptor.Scoped<IRecommendationEngine>(
+            sp => sp.GetRequiredService<RecommendationServiceClient>()));
     }
 }

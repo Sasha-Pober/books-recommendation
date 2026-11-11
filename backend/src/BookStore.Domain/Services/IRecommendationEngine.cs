@@ -3,18 +3,18 @@ using BookStore.Domain.Recommendations;
 namespace BookStore.Domain.Services;
 
 /// <summary>
-/// Produces ranked book ids. Implementations: the built-in baseline (popularity / content)
-/// and, later, a client of the Python recommendation service.
+/// Produces ranked book ids with explanations. Implementations: the Python recommendation service client
+/// and the built-in non-ML baseline (also the fallback).
 /// </summary>
 public interface IRecommendationEngine
 {
-    /// <summary>Reported to clients and logged, so results can be attributed to a model.</summary>
+    /// <summary>Reported to clients and logged, so results can be attributed to an engine.</summary>
     string Name { get; }
 
-    /// <param name="userId">Null for anonymous visitors.</param>
-    Task<IReadOnlyList<ScoredBook>> RecommendForUserAsync(
-        Guid? userId, int count, IReadOnlyCollection<Guid> excludeBookIds, CancellationToken cancellationToken);
+    /// <summary>"Recommended for you".</summary>
+    Task<RecommendationResult> RecommendAsync(HomeRecommendationRequest request, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<ScoredBook>> FindSimilarAsync(
+    /// <summary>"Similar books" for a book page; the book itself is never returned.</summary>
+    Task<RecommendationResult> FindSimilarAsync(
         Guid bookId, int count, IReadOnlyCollection<Guid> excludeBookIds, CancellationToken cancellationToken);
 }
