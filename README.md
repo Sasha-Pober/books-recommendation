@@ -4,9 +4,9 @@ A book store with a neural-network-based recommendation system.
 
 | Part | Tech | Status |
 |---|---|---|
-| `backend/` | C# / ASP.NET Core 10, EF Core, PostgreSQL | ✅ basic API |
+| `backend/` | C# / ASP.NET Core 10, EF Core, PostgreSQL, Redis | ✅ store API, unit + integration tests |
 | `frontend/` | TypeScript / Angular | planned |
-| `ml/` | Python / PyTorch recommendation service | planned |
+| `recsys/` | Python / FastAPI / PyTorch recommendation service | 🚧 skeleton: API contract, no model yet |
 
 ## Backend architecture
 
@@ -178,6 +178,35 @@ POST /v1/training/jobs
 - **`model_version_id`:** must exist in `model_versions`, otherwise the impressions aren't logged.
 - **Errors:** any non-2xx status or a slow response triggers the fallback.
 
+## Recommendation service (`recsys/`)
+
+A Python 3.12 FastAPI service, managed with [uv](https://docs.astral.sh/uv/). Only the API calls it, over the internal Docker network: the port isn't published, and every `/v1` request needs the `X-Service-Key` header.
+
+```
+recsys/
+├── src/recsys/
+│   ├── main.py          app factory, lifespan (database pool)
+│   ├── config.py        RECSYS_* settings (database URL, service key, artifacts dir)
+│   ├── security.py      X-Service-Key check
+│   ├── db.py            psycopg connection pool to the store database
+│   ├── recommender.py   Recommender protocol + registry of the active model
+│   └── api/             routes and the request/response schemas (the contract above)
+└── tests/               pytest
+```
+
+**Current state:** no model is trained yet. The recommendation endpoints answer 503 with `Retry-After`, and so does `POST /v1/training/jobs`; the API uses its own fallback meanwhile. `GET /health` (no key needed) reports whether the database is reachable and which model version is loaded.
+
+**Running locally:**
+
+```bash
+cd recsys
+uv sync                      # creates .venv with Python 3.12
+cp .env.example .env         # database URL + service key
+uv run recsys                # http://localhost:8000/docs
+uv run pytest                # tests
+uv run ruff check . && uv run ruff format --check .
+```
+
 ## Running locally
 
 Requirements: Docker. The .NET 10 SDK is needed only to run the API outside Docker.
@@ -185,7 +214,7 @@ Requirements: Docker. The .NET 10 SDK is needed only to run the API outside Dock
 ### Everything in Docker
 
 ```bash
-docker compose up -d --build   # PostgreSQL + Redis + API
+docker compose up -d --build   # PostgreSQL + Redis + recommendation service + API
 ```
 
 The API container runs in `Development` mode. On startup it applies migrations and seeds roles, demo accounts and a demo Ukrainian catalog. Database credentials come from `.env` (copy `.env.example`), or default to `bookstore`.

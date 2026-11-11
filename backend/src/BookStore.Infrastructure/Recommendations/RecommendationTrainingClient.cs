@@ -8,7 +8,8 @@ namespace BookStore.Infrastructure.Recommendations;
 
 /// <summary>
 /// Starts training in the Python recommendation service:
-/// <code>POST v1/training/jobs → 202 {"job_id": "...", "status": "queued"}; 409 if training is already running.</code>
+/// <code>POST v1/training/jobs → 202 {"job_id": "...", "status": "queued"}; 409 if training is already running;
+/// 503 (with Retry-After) if it can't start now.</code>
 /// The pipeline itself writes the new model to <c>model_versions</c> and activates it when it beats the current one.
 /// </summary>
 internal sealed class RecommendationTrainingClient(HttpClient http) : IModelTrainingService
@@ -37,6 +38,13 @@ internal sealed class RecommendationTrainingClient(HttpClient http) : IModelTrai
             if (response.StatusCode == HttpStatusCode.Conflict)
             {
                 throw new ConflictException("Training is already running.");
+            }
+
+            if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
+                throw new ServiceUnavailableException(
+                    "The recommendation service can't start training right now; try again later.",
+                    response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(30));
             }
 
             response.EnsureSuccessStatusCode();

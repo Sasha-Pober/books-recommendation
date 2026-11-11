@@ -1,5 +1,4 @@
-# Local development environment. Services (ML service, frontend)
-# will be added here as they are implemented.
+# Local development environment. The frontend will be added here when it is implemented.
 services:
   postgres:
     # pgvector + Ukrainian full-text search dictionary, see infra/postgres/Dockerfile
@@ -34,6 +33,22 @@ services:
       timeout: 3s
       retries: 10
 
+  recsys:
+    build:
+      context: ./recsys
+    container_name: bookstore-recsys
+    environment:
+      RECSYS_DATABASE_URL: postgresql://${POSTGRES_USER:-bookstore}:${POSTGRES_PASSWORD:-bookstore}@postgres:5432/${POSTGRES_DB:-bookstore}
+      RECSYS_SERVICE_KEY: ${RECSYS_SERVICE_KEY:-dev-recsys-service-key-change-me}
+    # No published port: only the API calls it, over the internal network.
+    expose:
+      - "8000"
+    volumes:
+      - recsys-artifacts:/app/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: ./backend
@@ -45,9 +60,9 @@ services:
         Host=postgres;Port=5432;Database=${POSTGRES_DB:-bookstore};Username=${POSTGRES_USER:-bookstore};Password=${POSTGRES_PASSWORD:-bookstore}
       # Short timeouts: when Redis is down the API falls back to the database quickly.
       ConnectionStrings__Redis: redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=200,syncTimeout=200
-      # Set when the Python recommendation service is added; until then the built-in baseline is used.
-      # RecommendationService__BaseUrl: http://recsys:8000/
-      # RecommendationService__ServiceKey: ${RECSYS_SERVICE_KEY}
+      # The Python recommendation service; without a trained model it answers 503 and the API uses its fallback.
+      RecommendationService__BaseUrl: http://recsys:8000/
+      RecommendationService__ServiceKey: ${RECSYS_SERVICE_KEY:-dev-recsys-service-key-change-me}
     ports:
       - "5292:8080"
     depends_on:
@@ -58,3 +73,4 @@ services:
 
 volumes:
   postgres-data:
+  recsys-artifacts:
