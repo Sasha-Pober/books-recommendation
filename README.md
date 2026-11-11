@@ -26,7 +26,8 @@ backend/
 │   ├── BookStore.Infrastructure/  EF Core + PostgreSQL: DbContext (unit of work), repositories, migrations, seeding
 │   └── BookStore.Api/             controllers, error handling (ProblemDetails), OpenAPI, health checks, DI composition
 └── tests/
-    └── BookStore.UnitTests/       service tests (NSubstitute mocks) and repository query tests
+    ├── BookStore.UnitTests/         business logic with mocked repositories; no database, no Docker
+    └── BookStore.IntegrationTests/  real PostgreSQL (Testcontainers) and the whole API over HTTP
 ```
 
 `Services` has no EF Core dependency; it works only through the repository interfaces from `Domain`.
@@ -146,6 +147,16 @@ Each item has a `reason`, a Ukrainian `explanation` (e.g. «Схожа на кн
 2. Every shown item is written to `recommendation_logs` (placement, position, model version). If logging fails, the recommendations are still returned.
 3. When the user opens a recommended book, the frontend sends a `View` event with that item's `recommendationLogId`, and the log entry is marked `clicked`. Only a log shown to the same user and for the same book counts. CTR is computed from these logs.
 
+### Model versions (Admin role)
+
+- **`GET /api/admin/models`:** trained versions from `model_versions`, newest first, with their offline metrics as JSON.
+- **`POST /api/admin/models/retrain`:** asks the recommendation service to start training and returns 202 with a job id.
+  - 409 if training is already running.
+  - 503 with `Retry-After` while the service isn't configured or is unreachable.
+- **Who writes the data:** the Python pipeline writes the new version and its embeddings, and activates it when it beats the current one.
+
+**Roles** (`Customer`, `Manager`, `Admin`) are created by the `SeedRoles` migration, so they exist in every environment. The development seeder only adds the demo accounts.
+
 ### Recommendation service contract (Python, FastAPI)
 
 The API calls the service over the internal network with the `X-Service-Key: <RecommendationService:ServiceKey>` header. JSON is snake_case.
@@ -158,6 +169,9 @@ POST /v1/recommendations/similar
 {"book_id": "uuid", "count": 10, "exclude_book_ids": ["uuid"]}
 
 200 → {"model_version_id": 3, "items": [{"book_id": "uuid", "score": 0.91, "reason": "similar_to_viewed"}]}
+
+POST /v1/training/jobs
+202 → {"job_id": "string", "status": "queued"}    409 if training is already running
 ```
 
 - **`reason`:** one of `similar_to_viewed`, `liked_by_similar_readers`, `new_from_favorite_author`, `bestseller`, `trending`, `new_release`, `same_author`, `similar_content`. An unknown reason only removes the explanation; the book is kept.
@@ -211,8 +225,30 @@ docker compose exec postgres psql -U bookstore -d bookstore \
 ### Tests
 
 ```bash
-cd backend && dotnet test
+cd backend
+dotnet test tests/BookStore.UnitTests          # fast, no Docker
+dotnet test tests/BookStore.IntegrationTests   # needs Docker running
+dotnet test                                    # both
 ```
+
+**What the integration tests do:**
+1. Build the PostgreSQL image from `infra/postgres/` (pgvector plus the Ukrainian dictionary). The first run takes a minute or two; later runs use Docker's cache.
+2. Start one container for the whole run and apply the migrations.
+3. Empty the tables before each test.
+4. Remove the container afterwards; Testcontainers also starts its own short-lived `ryuk` container for this cleanup.
+
+**What they cover:**
+- **Migrations:** the Ukrainian search configuration and the seeded roles.
+- **Constraints:** the rating check, `vector(384)`, and the single active model.
+- **Full-text search:** word forms, ranking, partial words, authors, excluded words.
+- **Filters and sorting.**
+- **Concurrency:** concurrent stock reservations, and order rollback.
+- **Events:** the event writer and click marking, plus merging guest events on sign-in.
+- **Tokens:** refresh-token rotation and reuse detection.
+- **Over HTTP** (`WebApplicationFactory`): registration and login, admin model endpoints, and the recommendation and click loop.
+
+With Docker Desktop on Linux, if Testcontainers can't find Docker, point it at the Desktop socket:
+`export DOCKER_HOST=unix://$HOME/.docker/desktop/docker.sock`.
 
 ### Migrations
 
