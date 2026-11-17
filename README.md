@@ -6,7 +6,7 @@ A book store with a neural-network-based recommendation system.
 |---|---|---|
 | `backend/` | C# / ASP.NET Core 10, EF Core, PostgreSQL, Redis | ✅ store API, unit + integration tests |
 | `frontend/` | TypeScript / Angular | planned |
-| `recsys/` | Python / FastAPI / PyTorch recommendation service | 🚧 skeleton: API contract, no model yet |
+| `recsys/` | Python / FastAPI / PyTorch recommendation service | 🚧 data import, model and training done; model import + inference next |
 
 ## Backend architecture
 
@@ -193,7 +193,9 @@ recsys/
 │   ├── api/             routes and the request/response schemas (the contract above)
 │   ├── cli.py           `recsys serve | import-goodreads | export-dataset`
 │   ├── goodreads/       import of the UCSD Goodreads data into the store database
-│   └── dataset/         export for training, r_ui and the time-based split, book feature encoding
+│   ├── dataset/         export for training, r_ui and the time-based split, book feature encoding
+│   └── model/           hybrid network, training, metrics, baselines, model bundle
+├── notebooks/           train_kaggle.ipynb
 └── tests/               pytest
 ```
 
@@ -240,14 +242,35 @@ When using the data, cite:
 - **Cold-start test set:** known users with books that first appeared in the test period.
 - **Book features:** authors, genres, publisher and language indices, plus standardized year and page count. The text (title + annotation) is embedded during training.
 
+**Model** (`recsys.model`, following `CLAUDE.md`):
+- **Content component:** the frozen `paraphrase-multilingual-MiniLM-L12-v2` text embedding (384-d, title + annotation) and author / genre / publisher / language embeddings and numeric features go through `c_i = ReLU(W_c[…])`. The user profile `u_c` is the decay-weighted mean (half-life 180 days) of `c_i` over the latest 50 interactions, and `s_c = cos(u_c, c_i)`.
+- **Collaborative component:** NeuMF (GMF + MLP). A book with `n_i < 5` uses `W_q·c_i` instead of its id vector.
+- **Combination:** `α_ui = σ(w1·log(1+n_u) + w2·log(1+n_i) + b)`, `ŷ = σ(α·s_cf + (1−α)·γ·s_c)`.
+- **Loss:** `L_BPR + β·L_align + λ‖Θ‖²`. Adam, lr 1e-3, batch 1024 triples, 4 negatives, latent dim 64, early stopping on validation NDCG@10.
+- **Regularization:**
+  - **DropoutNet:** a book is treated as new with p = 0.2.
+  - **Metadata dropout:** a book's author, publisher and numbers are hidden with p = 0.3. Without it the content tower learns feature combinations that identify individual training books and generalizes poorly to new ones.
+  - **Small initialization:** metadata embeddings start small (std 0.01), so authors that only occur in new books add no noise.
+- **Evaluation:** ranking over the full catalog, with known books excluded, on a warm test set and a cold-start test set (books first seen in the test period).
+  - **Metrics:** P/R/HR/MRR/NDCG@{10,20}, Coverage, ILD and Novelty.
+  - **Baselines:** popularity, TF-IDF and BPR matrix factorization.
+
+**Training.** On Kaggle, open `notebooks/train_kaggle.ipynb` (instructions inside). It needs two private datasets: the export folder, and the wheel from `uv build --wheel`. To train locally instead:
+
+```bash
+uv run --extra cpu recsys train --data data/export/<UTC time> --out artifacts/bundles
+```
+
+The result is a bundle folder: weights, ids, vocabularies, text embeddings, `metrics.json` and `training.json`. On a CPU an epoch takes about 7 minutes for the Poetry subset.
+
 **Running locally:**
 
 ```bash
 cd recsys
-uv sync                      # creates .venv with Python 3.12
+uv sync --extra cpu          # .venv with Python 3.12 and the CPU build of PyTorch (or --extra cu128 for a GPU)
 cp .env.example .env         # database URL + service key
-uv run recsys                # http://localhost:8000/docs
-uv run pytest                # tests
+uv run recsys serve          # http://localhost:8000/docs
+uv run --extra cpu pytest    # tests
 uv run ruff check . && uv run ruff format --check .
 ```
 

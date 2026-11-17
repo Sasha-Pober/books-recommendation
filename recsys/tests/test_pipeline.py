@@ -55,6 +55,7 @@ def test_time_split_keeps_warm_pairs_and_collects_cold_start_books() -> None:
     assert set(split.test["user_id"]) <= {"u1", "u2"}
     assert "new" not in set(split.test["book_id"])
     assert split.cold_test[["user_id", "book_id"]].to_dict("records") == [{"user_id": "u2", "book_id": "new"}]
+    assert split.cold_val.empty  # no book first appeared in the validation period
 
 
 @pytest.mark.parametrize(("val", "test"), [(0, 0.1), (0.5, 0.5), (-0.1, 0.1)])

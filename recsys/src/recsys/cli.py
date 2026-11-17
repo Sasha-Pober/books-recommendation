@@ -26,8 +26,37 @@ def main(argv: list[str] | None = None) -> None:
     export = commands.add_parser("export-dataset", help="export training data from the store database")
     export.add_argument("--out", type=Path, default=Path("data/export"))
 
+    training = commands.add_parser(
+        "train", help="train the hybrid model on an exported dataset (e.g. on Kaggle)"
+    )
+    training.add_argument("--data", type=Path, required=True, help="folder written by export-dataset")
+    training.add_argument("--out", type=Path, default=Path("artifacts/bundles"))
+    training.add_argument("--name", help="bundle name (default: hybrid-<UTC time>)")
+    training.add_argument("--device", default="auto", help="auto, cpu, cuda")
+    training.add_argument("--max-epochs", type=int, default=30)
+    training.add_argument("--eval-users", type=int, default=3000, help="validation users sampled per epoch")
+    training.add_argument(
+        "--test-users", type=int, default=10000, help="test users sampled at the end (0 = all)"
+    )
+    training.add_argument("--no-baselines", action="store_true", help="skip popularity, TF-IDF and BPR-MF")
+    training.add_argument(
+        "--cache-dir", type=Path, default=Path("artifacts/cache"), help="text embedding cache"
+    )
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    if args.command == "train":  # needs no database
+        from recsys.model.train import TrainConfig, train
+
+        config = TrainConfig(
+            max_epochs=args.max_epochs,
+            eval_users=args.eval_users,
+            test_users=args.test_users,
+            baselines=not args.no_baselines,
+        )
+        train(args.data, args.out, config, device=args.device, name=args.name, cache_dir=args.cache_dir)
+        return
 
     # Imported here so `serve` doesn't load pandas and the data commands don't load the web stack.
     from recsys.config import Settings

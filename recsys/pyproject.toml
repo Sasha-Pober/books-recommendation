@@ -2,16 +2,22 @@
 name = "recsys"
 version = "0.1.0"
 description = "Hybrid neural recommendation service for the book store (FastAPI + PyTorch)"
-requires-python = ">=3.12"
+requires-python = ">=3.11"  # 3.11: Kaggle notebooks
 dependencies = [
     "fastapi>=0.162.4",
-    "orjson>=3.13.0",
-    "pandas>=3.1.1",
+    "orjson>=3.9",
+    "pandas>=2.2",
     "psycopg[binary,pool]>=3.3.8",
-    "pyarrow>=26.0.1",
+    "pyarrow>=15",
     "pydantic-settings>=2.16.2",
     "uvicorn[standard]>=0.54.0",
 ]
+
+[project.optional-dependencies]
+# Model training and inference. Exactly one of these: Docker and plain development use cpu,
+# a machine with an NVIDIA GPU can use cu128. On Kaggle install without extras (it has its own torch).
+cpu = ["torch>=2.9", "sentence-transformers>=5.0", "scikit-learn>=1.6"]
+cu128 = ["torch>=2.9", "sentence-transformers>=5.0", "scikit-learn>=1.6"]
 
 [project.scripts]
 recsys = "recsys.cli:main"
@@ -19,6 +25,25 @@ recsys = "recsys.cli:main"
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]
 build-backend = "uv_build"
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cu128" }]]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu128", extra = "cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [dependency-groups]
 dev = [
@@ -35,7 +60,7 @@ filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecate
 
 [tool.ruff]
 line-length = 110
-target-version = "py312"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

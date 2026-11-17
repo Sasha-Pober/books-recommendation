@@ -45,12 +45,13 @@ def build_pairs(interactions: pd.DataFrame) -> pd.DataFrame:
 
 @dataclass
 class Split:
-    """Pairs split by time. val/test are "warm": users and books that occur in train. cold_test holds pairs
-    of known users with books that first appeared in the test period (the cold-start evaluation)."""
+    """Pairs split by time. val/test are "warm": users and books that occur in train. cold_val / cold_test
+    hold pairs of known users with books that first appeared in the validation / test period (cold start)."""
 
     train: pd.DataFrame
     val: pd.DataFrame
     test: pd.DataFrame
+    cold_val: pd.DataFrame
     cold_test: pd.DataFrame
     val_start: pd.Timestamp
     test_start: pd.Timestamp
@@ -68,6 +69,7 @@ def time_split(pairs: pd.DataFrame, val_fraction: float = 0.1, test_fraction: fl
 
     train_users, train_books = set(train["user_id"]), set(train["book_id"])
     first_seen = pairs.groupby("book_id")["t"].min()
+    new_in_val = set(first_seen[(first_seen >= val_start) & (first_seen < test_start)].index)
     new_in_test = set(first_seen[first_seen >= test_start].index)
 
     def warm(frame: pd.DataFrame) -> pd.DataFrame:
@@ -75,11 +77,13 @@ def time_split(pairs: pd.DataFrame, val_fraction: float = 0.1, test_fraction: fl
             drop=True
         )
 
+    cold_val = val[val["user_id"].isin(train_users) & val["book_id"].isin(new_in_val)]
     cold_test = test[test["user_id"].isin(train_users) & test["book_id"].isin(new_in_test)]
     return Split(
         train=train.reset_index(drop=True),
         val=warm(val),
         test=warm(test),
+        cold_val=cold_val.reset_index(drop=True),
         cold_test=cold_test.reset_index(drop=True),
         val_start=val_start,
         test_start=test_start,
