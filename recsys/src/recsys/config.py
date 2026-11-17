@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     # The store database (shared with the ASP.NET Core API), e.g. postgresql://user:pass@postgres:5432/bookstore
     database_url: str
 
-    # Shared secret the API sends as X-Service-Key.
-    service_key: SecretStr = Field(min_length=16)
+    # Shared secret the API sends as X-Service-Key. Required to serve; not needed by the data commands.
+    service_key: SecretStr | None = Field(default=None, min_length=16)
 
     # Trained models, indexes and cached text embeddings.
     artifacts_dir: Path = Path("artifacts")

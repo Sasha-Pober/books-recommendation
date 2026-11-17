@@ -16,7 +16,7 @@ namespace BookStore.IntegrationTests.Api;
 public class AdminAndRecommendationsTests(PostgresFixture fixture) : PostgresTest(fixture)
 {
     [Fact]
-    public async Task AdminModels_ListsVersionsWithMetrics_AndRetrainIsUnavailableWithoutTheService()
+    public async Task AdminModels_ListsVersionsWithMetrics_AndActivationNeedsTheService()
     {
         await using (var db = Fixture.CreateDbContext())
         {
@@ -37,9 +37,12 @@ public class AdminAndRecommendationsTests(PostgresFixture fixture) : PostgresTes
         Assert.True(model.IsActive);
         Assert.Equal(0.31, model.Metrics!.Value.GetProperty("ndcg@10").GetDouble());
 
-        var retrain = await admin.PostAsync("/api/admin/models/retrain", content: null);
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, retrain.StatusCode);
-        Assert.NotNull(retrain.Headers.RetryAfter);
+        var activate = await admin.PostAsync($"/api/admin/models/{model.Id}/activate", content: null);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, activate.StatusCode); // no recommendation service in tests
+        Assert.NotNull(activate.Headers.RetryAfter);
+
+        var unknown = await admin.PostAsync("/api/admin/models/999/activate", content: null);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
     [Fact]

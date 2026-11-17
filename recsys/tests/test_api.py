@@ -87,8 +87,8 @@ def test_similar_requires_a_book_id(client: TestClient) -> None:
     assert missing.status_code == 422
 
 
-def test_training_is_not_available_yet(client: TestClient) -> None:
-    assert client.post("/v1/training/jobs").status_code == 503
+def test_model_activation_is_not_available_yet(client: TestClient) -> None:
+    assert client.post("/v1/models/1/activate").status_code == 503
 
 
 def test_health_is_public_and_reports_missing_database_and_model(client: TestClient) -> None:

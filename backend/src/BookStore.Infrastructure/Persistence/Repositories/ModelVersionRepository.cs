@@ -12,4 +12,7 @@ internal sealed class ModelVersionRepository(BookStoreDbContext db) : IModelVers
             .OrderByDescending(m => m.TrainedAt)
             .ThenByDescending(m => m.Id)
             .ToListAsync(cancellationToken);
+
+    public Task<ModelVersion?> GetByIdAsync(int id, CancellationToken cancellationToken) =>
+        db.ModelVersions.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 }

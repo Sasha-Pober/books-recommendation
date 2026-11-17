@@ -5,13 +5,16 @@ description = "Hybrid neural recommendation service for the book store (FastAPI 
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.4",
+    "orjson>=3.13.0",
+    "pandas>=3.1.1",
     "psycopg[binary,pool]>=3.3.8",
+    "pyarrow>=26.0.1",
     "pydantic-settings>=2.16.2",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
-recsys = "recsys:main"
+recsys = "recsys.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]

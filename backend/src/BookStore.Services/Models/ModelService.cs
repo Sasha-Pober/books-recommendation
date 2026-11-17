@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BookStore.Domain.Entities;
+using BookStore.Domain.Exceptions;
 using BookStore.Domain.Repositories;
 using BookStore.Domain.Services;
 using BookStore.Presentation.Models;
@@ -11,22 +12,35 @@ public interface IModelService
 {
     Task<IReadOnlyList<ModelVersionDto>> GetAllAsync(CancellationToken cancellationToken);
 
-    Task<TrainingJobDto> RetrainAsync(CancellationToken cancellationToken);
+    /// <summary>Makes an imported model version the one the recommendation service uses.</summary>
+    Task<ModelVersionDto> ActivateAsync(int id, CancellationToken cancellationToken);
 }
 
-internal sealed class ModelService(IModelVersionRepository models, IModelTrainingService training) : IModelService
+internal sealed class ModelService(IModelVersionRepository models, IModelActivationService activation) : IModelService
 {
     public async Task<IReadOnlyList<ModelVersionDto>> GetAllAsync(CancellationToken cancellationToken)
     {
         var all = await models.GetAllAsync(cancellationToken);
-        return all.Select(m => new ModelVersionDto(m.Id, m.Name, m.TrainedAt, ParseMetrics(m), m.IsActive)).ToList();
+        return all.Select(ToDto).ToList();
     }
 
-    public async Task<TrainingJobDto> RetrainAsync(CancellationToken cancellationToken)
+    public async Task<ModelVersionDto> ActivateAsync(int id, CancellationToken cancellationToken)
     {
-        var job = await training.StartTrainingAsync(cancellationToken);
-        return new TrainingJobDto(job.JobId, job.Status);
+        if (await models.GetByIdAsync(id, cancellationToken) is null)
+        {
+            throw new NotFoundException(nameof(ModelVersion), id);
+        }
+
+        // The service loads the model and updates model_versions.is_active itself.
+        await activation.ActivateAsync(id, cancellationToken);
+
+        var activated = await models.GetByIdAsync(id, cancellationToken)
+                        ?? throw new NotFoundException(nameof(ModelVersion), id);
+        return ToDto(activated);
     }
+
+    private static ModelVersionDto ToDto(ModelVersion model) =>
+        new(model.Id, model.Name, model.TrainedAt, ParseMetrics(model), model.IsActive);
 
     /// <summary>Written by the Python pipeline; invalid JSON is shown as no metrics rather than failing the list.</summary>
     private static JsonElement? ParseMetrics(ModelVersion model)

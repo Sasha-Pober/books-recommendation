@@ -150,10 +150,10 @@ Each item has a `reason`, a Ukrainian `explanation` (e.g. «Схожа на кн
 ### Model versions (Admin role)
 
 - **`GET /api/admin/models`:** trained versions from `model_versions`, newest first, with their offline metrics as JSON.
-- **`POST /api/admin/models/retrain`:** asks the recommendation service to start training and returns 202 with a job id.
-  - 409 if training is already running.
-  - 503 with `Retry-After` while the service isn't configured or is unreachable.
-- **Who writes the data:** the Python pipeline writes the new version and its embeddings, and activates it when it beats the current one.
+- **`POST /api/admin/models/{id}/activate`:** switches recommendations to an imported model version and returns it.
+  - 404 if the version, or its files in the service, are unknown.
+  - 503 with `Retry-After` while the recommendation service is unavailable.
+- **Who writes the data:** models are trained offline (Kaggle), and `recsys import-model` registers the version, its metrics and the book embeddings.
 
 **Roles** (`Customer`, `Manager`, `Admin`) are created by the `SeedRoles` migration, so they exist in every environment. The development seeder only adds the demo accounts.
 
@@ -170,8 +170,8 @@ POST /v1/recommendations/similar
 
 200 → {"model_version_id": 3, "items": [{"book_id": "uuid", "score": 0.91, "reason": "similar_to_viewed"}]}
 
-POST /v1/training/jobs
-202 → {"job_id": "string", "status": "queued"}    409 if training is already running
+POST /v1/models/{model_version_id}/activate
+200 → {"model_version_id": 3}    404 if the version or its files are unknown
 ```
 
 - **`reason`:** one of `similar_to_viewed`, `liked_by_similar_readers`, `new_from_favorite_author`, `bestseller`, `trending`, `new_release`, `same_author`, `similar_content`. An unknown reason only removes the explanation; the book is kept.
@@ -190,11 +190,55 @@ recsys/
 │   ├── security.py      X-Service-Key check
 │   ├── db.py            psycopg connection pool to the store database
 │   ├── recommender.py   Recommender protocol + registry of the active model
-│   └── api/             routes and the request/response schemas (the contract above)
+│   ├── api/             routes and the request/response schemas (the contract above)
+│   ├── cli.py           `recsys serve | import-goodreads | export-dataset`
+│   ├── goodreads/       import of the UCSD Goodreads data into the store database
+│   └── dataset/         export for training, r_ui and the time-based split, book feature encoding
 └── tests/               pytest
 ```
 
-**Current state:** no model is trained yet. The recommendation endpoints answer 503 with `Retry-After`, and so does `POST /v1/training/jobs`; the API uses its own fallback meanwhile. `GET /health` (no key needed) reports whether the database is reachable and which model version is loaded.
+**Current state:** no model is imported yet. The recommendation endpoints answer 503 with `Retry-After`, and so does `POST /v1/models/{id}/activate`; the API uses its own fallback meanwhile. `GET /health` (no key needed) reports whether the database is reachable and which model version is loaded.
+
+**Training workflow (offline).** Training takes long, so it isn't triggered from the store:
+
+```
+store DB ──recsys export-dataset──▶ parquet files ──upload──▶ Kaggle (private dataset) ─ train on GPU
+store DB ◀──recsys import-model───── model bundle ◀──download────────────────────────────┘
+```
+
+The admin switches between imported versions with `POST /api/admin/models/{id}/activate`. The API forwards this to `POST /v1/models/{id}/activate` in the service, which loads that version.
+
+**Dataset.** The UCSD Book Graph (Goodreads) genre subsets, Poetry by default. The data is for **academic use only and must not be redistributed**: it isn't committed, so download it yourself into `recsys/data/goodreads/`:
+
+| File | URL |
+|---|---|
+| `goodreads_books_poetry.json.gz` | https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/byGenre/goodreads_books_poetry.json.gz |
+| `goodreads_interactions_poetry.json.gz` | https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/byGenre/goodreads_interactions_poetry.json.gz |
+| `goodreads_book_authors.json.gz` | https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/goodreads_book_authors.json.gz |
+| `goodreads_book_genres_initial.json.gz` | https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/goodreads_book_genres_initial.json.gz |
+
+When using the data, cite:
+- Mengting Wan, Julian McAuley, "Item Recommendation on Monotonic Behavior Chains", RecSys'18.
+- Mengting Wan, Rishabh Misra, Ndapa Nakashole, Julian McAuley, "Fine-Grained Spoiler Detection from Large-Scale Review Corpora", ACL'19.
+
+**Import** (`uv run recsys import-goodreads`) writes the subset into the store database in one transaction, and can be repeated: ids are deterministic UUIDs, and the previous import's events are replaced.
+- **Catalog:** books, authors, publishers and genres. Prices are synthetic (150–600, stable per book) and stock is 25.
+- **Readers:** users with at least 5 shelved books, as Customer accounts without a password, so they can't sign in.
+- **Events and ratings:** each shelf record becomes store events (see the table below), and ratings also go into `ratings`.
+
+| Goodreads record | Store event | Weight | Time |
+|---|---|---|---|
+| shelved, not read ("to-read") | `AddToWishlist` | 0.5 | `date_added` |
+| read | `Purchase` | 1.0 | `date_added` |
+| rated 1–5 | `Rating` (+ row in `ratings`) | 1.0 for 4–5, else 0 | `date_updated` |
+
+**Export** (`uv run recsys export-dataset`) writes one consistent snapshot to `data/export/<UTC time>/`: `interactions`, `books`, `book_authors`, `book_genres` and `genres` as parquet files, plus `meta.json`. Upload that folder to Kaggle as a **private** dataset.
+
+**Training data** (`recsys.dataset`):
+- **Interest r_ui:** the maximum weight per (user, book). The time t_ui is when that maximum was first reached.
+- **Time-based split:** train / val / test, 80 / 10 / 10 by time. Val and test keep only users and books seen in train.
+- **Cold-start test set:** known users with books that first appeared in the test period.
+- **Book features:** authors, genres, publisher and language indices, plus standardized year and page count. The text (title + annotation) is embedded during training.
 
 **Running locally:**
 

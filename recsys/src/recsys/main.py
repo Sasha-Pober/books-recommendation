@@ -12,6 +12,8 @@ from recsys.recommender import ModelRegistry
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
+    if settings.service_key is None:
+        raise ValueError("RECSYS_SERVICE_KEY is required to run the service.")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     @asynccontextmanager

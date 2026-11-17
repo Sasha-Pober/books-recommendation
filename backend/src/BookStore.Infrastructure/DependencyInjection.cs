@@ -107,17 +107,17 @@ public static class DependencyInjection
         if (section.Get<RecommendationServiceOptions>()?.BaseUrl is null)
         {
             // The baseline engine registered by the Services layer stays the primary engine.
-            services.AddSingleton<IModelTrainingService, UnavailableTrainingService>();
+            services.AddSingleton<IModelActivationService, UnavailableModelActivation>();
             return;
         }
 
-        // Starting a training job is not latency-critical: a plain timeout, no circuit breaker.
-        services.AddHttpClient<IModelTrainingService, RecommendationTrainingClient>((sp, http) =>
+        // Activation loads a model (index files, network weights): not latency-critical, a plain timeout.
+        services.AddHttpClient<IModelActivationService, ModelActivationClient>((sp, http) =>
         {
             var options = sp.GetRequiredService<IOptions<RecommendationServiceOptions>>().Value;
             http.BaseAddress = options.BaseUrl;
             http.DefaultRequestHeaders.Add(RecommendationServiceClient.ServiceKeyHeader, options.ServiceKey);
-            http.Timeout = TimeSpan.FromSeconds(10);
+            http.Timeout = TimeSpan.FromSeconds(60);
         });
 
         services

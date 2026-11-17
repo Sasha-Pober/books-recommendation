@@ -16,9 +16,11 @@ public sealed class AdminModelsController(IModelService models) : ControllerBase
     public Task<IReadOnlyList<ModelVersionDto>> GetAll(CancellationToken cancellationToken) =>
         models.GetAllAsync(cancellationToken);
 
-    /// <summary>Starts training in the recommendation service (409 if already running, 503 if unavailable).</summary>
-    [HttpPost("retrain")]
-    [ProducesResponseType(StatusCodes.Status202Accepted)]
-    public async Task<ActionResult<TrainingJobDto>> Retrain(CancellationToken cancellationToken) =>
-        Accepted(await models.RetrainAsync(cancellationToken));
+    /// <summary>
+    /// Switches recommendations to an imported model version (models are trained offline and imported with
+    /// <c>recsys import-model</c>). 404 if unknown, 503 if the recommendation service is unavailable.
+    /// </summary>
+    [HttpPost("{id:int}/activate")]
+    public Task<ModelVersionDto> Activate(int id, CancellationToken cancellationToken) =>
+        models.ActivateAsync(id, cancellationToken);
 }

@@ -1,29 +1,33 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
 using BookStore.Domain.Exceptions;
 using BookStore.Infrastructure.Recommendations;
 
 namespace BookStore.UnitTests.Recommendations;
 
-public class RecommendationTrainingClientTests
+public class ModelActivationClientTests
 {
     [Fact]
-    public async Task Accepted_ReturnsTheJob()
+    public async Task Ok_CallsTheVersionsActivateEndpoint()
     {
-        var client = CreateClient(_ => Json(HttpStatusCode.Accepted, """{"job_id": "job-1", "status": "queued"}"""));
+        Uri? called = null;
+        var client = CreateClient(request =>
+        {
+            called = request.RequestUri;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
 
-        var job = await client.StartTrainingAsync(CancellationToken.None);
+        await client.ActivateAsync(7, CancellationToken.None);
 
-        Assert.Equal(("job-1", "queued"), (job.JobId, job.Status));
+        Assert.Equal("http://recsys.test/v1/models/7/activate", called!.ToString());
     }
 
     [Fact]
-    public async Task Conflict_MeansTrainingIsAlreadyRunning()
+    public async Task NotFound_MeansTheServiceHasNoFilesForTheVersion()
     {
-        var client = CreateClient(_ => new HttpResponseMessage(HttpStatusCode.Conflict));
+        var client = CreateClient(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
 
-        await Assert.ThrowsAsync<ConflictException>(() => client.StartTrainingAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(() => client.ActivateAsync(7, CancellationToken.None));
     }
 
     [Fact]
@@ -37,7 +41,7 @@ public class RecommendationTrainingClientTests
         });
 
         var error = await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
-            client.StartTrainingAsync(CancellationToken.None));
+            client.ActivateAsync(7, CancellationToken.None));
         Assert.Equal(TimeSpan.FromSeconds(300), error.RetryAfter);
     }
 
@@ -46,14 +50,11 @@ public class RecommendationTrainingClientTests
     {
         var client = CreateClient(_ => throw new HttpRequestException("connection refused"));
 
-        await Assert.ThrowsAsync<ServiceUnavailableException>(() => client.StartTrainingAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => client.ActivateAsync(7, CancellationToken.None));
     }
 
-    private static RecommendationTrainingClient CreateClient(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+    private static ModelActivationClient CreateClient(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         new(new HttpClient(new Handler(respond)) { BaseAddress = new Uri("http://recsys.test/") });
-
-    private static HttpResponseMessage Json(HttpStatusCode status, string json) =>
-        new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {

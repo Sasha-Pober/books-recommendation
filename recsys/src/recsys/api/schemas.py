@@ -43,9 +43,8 @@ class RecommendationResponse(BaseModel):
     items: list[RecommendationItem]
 
 
-class TrainingJobResponse(BaseModel):
-    job_id: str
-    status: str
+class ModelActivationResponse(BaseModel):
+    model_version_id: int
 
 
 class HealthResponse(BaseModel):

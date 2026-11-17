@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from recsys.api.schemas import (
     HealthResponse,
     HomeRequest,
+    ModelActivationResponse,
     RecommendationResponse,
     SimilarRequest,
-    TrainingJobResponse,
 )
 from recsys.db import Database
 from recsys.recommender import ModelRegistry, Recommender
@@ -55,12 +55,12 @@ def find_similar(
     return model.find_similar(body)
 
 
-@v1.post("/training/jobs", status_code=status.HTTP_202_ACCEPTED)
-def start_training() -> TrainingJobResponse:
-    """Starts training a new model (409 if one is already running)."""
+@v1.post("/models/{model_version_id}/activate")
+def activate_model(model_version_id: int) -> ModelActivationResponse:
+    """Loads an imported model version and marks it active (404 if its files are unknown)."""
     raise HTTPException(
         status.HTTP_503_SERVICE_UNAVAILABLE,
-        "The training pipeline is not implemented yet.",
+        "Loading models is not implemented yet.",
         headers={"Retry-After": "300"},
     )
 
