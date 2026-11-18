@@ -14,10 +14,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Model training and inference. Exactly one of these: Docker and plain development use cpu,
-# a machine with an NVIDIA GPU can use cu128. On Kaggle install without extras (it has its own torch).
-cpu = ["torch>=2.9", "sentence-transformers>=5.0", "scikit-learn>=1.6"]
-cu128 = ["torch>=2.9", "sentence-transformers>=5.0", "scikit-learn>=1.6"]
+# Model training and inference: Keras 3 on the PyTorch backend. Exactly one of these extras: Docker and plain
+# development use cpu, a machine with an NVIDIA GPU can use cu128. On Kaggle install without extras (it has
+# its own torch and keras).
+cpu = ["torch>=2.9", "keras>=3.10", "sentence-transformers>=5.0", "scikit-learn>=1.6", "faiss-cpu>=1.9"]
+cu128 = ["torch>=2.9", "keras>=3.10", "sentence-transformers>=5.0", "scikit-learn>=1.6", "faiss-cpu>=1.9"]
 
 [project.scripts]
 recsys = "recsys.cli:main"
@@ -56,7 +57,11 @@ dev = [
 testpaths = ["tests"]
 addopts = "-q"
 # Starlette suggests a successor package for its test client; httpx still works.
-filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
+filterwarnings = [
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+    # Inside Keras' PyTorch backend (np.array on its own tensors), not our code.
+    "ignore:__array__ implementation doesn't accept a copy keyword:DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 110

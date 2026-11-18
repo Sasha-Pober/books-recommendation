@@ -8,10 +8,15 @@ class Recommender(Protocol):
     """A loaded model that serves recommendations (implemented by the trained hybrid model)."""
 
     model_version_id: int | None
+    name: str
 
     def recommend_home(self, request: HomeRequest) -> RecommendationResponse: ...
 
     def find_similar(self, request: SimilarRequest) -> RecommendationResponse: ...
+
+    def refresh_if_stale(self) -> None:
+        """Reloads live data (e.g. the catalog) when it is old enough."""
+        ...
 
 
 class ModelRegistry:

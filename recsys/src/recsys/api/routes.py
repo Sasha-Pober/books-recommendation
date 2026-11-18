@@ -12,6 +12,7 @@ from recsys.api.schemas import (
 from recsys.db import Database
 from recsys.recommender import ModelRegistry, Recommender
 from recsys.security import require_service_key
+from recsys.serving import ModelLoader, ModelNotFound
 
 router = APIRouter()
 v1 = APIRouter(prefix="/v1", dependencies=[Depends(require_service_key)])
@@ -26,6 +27,10 @@ def get_registry(request: Request) -> ModelRegistry:
 
 def get_database(request: Request) -> Database:
     return request.app.state.database
+
+
+def get_loader(request: Request) -> ModelLoader:
+    return request.app.state.loader
 
 
 def require_model(registry: Annotated[ModelRegistry, Depends(get_registry)]) -> Recommender:
@@ -56,13 +61,15 @@ def find_similar(
 
 
 @v1.post("/models/{model_version_id}/activate")
-def activate_model(model_version_id: int) -> ModelActivationResponse:
-    """Loads an imported model version and marks it active (404 if its files are unknown)."""
-    raise HTTPException(
-        status.HTTP_503_SERVICE_UNAVAILABLE,
-        "Loading models is not implemented yet.",
-        headers={"Retry-After": "300"},
-    )
+def activate_model(
+    model_version_id: int, loader: Annotated[ModelLoader, Depends(get_loader)]
+) -> ModelActivationResponse:
+    """Loads an imported model version and marks it active (404 if the version or its files are unknown)."""
+    try:
+        loader.activate(model_version_id)
+    except ModelNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    return ModelActivationResponse(model_version_id=model_version_id)
 
 
 @router.get("/health")

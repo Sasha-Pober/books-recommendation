@@ -3,21 +3,18 @@
 from collections.abc import Callable, Sequence
 
 import numpy as np
-import torch
-from torch import Tensor
 
 from recsys.model.data import EvalSet
 from recsys.model.metrics import RankingMetrics
 
 # users [batch], history items [batch, length], history weights [batch, length] → scores [batch, items]
-Scorer = Callable[[Tensor, Tensor, Tensor], Tensor]
+Scorer = Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray]
 
 
 def evaluate(
     scorer: Scorer,
     eval_set: EvalSet,
     metrics: RankingMetrics,
-    device: torch.device,
     max_users: int | None = None,
     batch_users: int = 64,
     seed: int = 0,
@@ -32,17 +29,15 @@ def evaluate(
     for start in range(0, len(positions), batch_users):
         batch = positions[start : start + batch_users]
         users = eval_set.users[batch]
-        scores = scorer(
-            torch.as_tensor(users, device=device),
-            torch.as_tensor(histories.items[users], device=device),
-            torch.as_tensor(histories.weights[users], device=device),
-        ).float()
+        scores = np.array(scorer(users, histories.items[users], histories.weights[users]), dtype=np.float32)
         for row, i in enumerate(batch):
             known = eval_set.exclude[i]
             if len(known):
-                scores[row, torch.tensor(known, device=device)] = -torch.inf
-        top = torch.topk(scores, k_max, dim=1).indices.cpu().numpy()
-        metrics.add(top, [eval_set.relevant[i] for i in batch])
+                scores[row, known] = -np.inf
+        # The k best per row, best first (argpartition: no full sort of the catalog).
+        top = np.argpartition(-scores, k_max - 1, axis=1)[:, :k_max]
+        order = np.argsort(-np.take_along_axis(scores, top, axis=1), axis=1, kind="stable")
+        metrics.add(np.take_along_axis(top, order, axis=1), [eval_set.relevant[i] for i in batch])
     return metrics.result()
 
 

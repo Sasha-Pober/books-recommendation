@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-import torch
+from keras import ops
 
 from recsys.dataset.pipeline import load_export
 from recsys.model.bundle import load_bundle
@@ -11,8 +11,8 @@ from recsys.model.data import PAD, build_histories, build_training_data
 from recsys.model.evaluate import evaluate, new_metrics
 from recsys.model.metrics import RankingMetrics
 from recsys.model.text import embed_texts
-from recsys.model.train import TrainConfig, build_model, train
-from tests.synthetic import fake_encoder, write_export
+from recsys.model.train import TrainConfig, build_model
+from tests.synthetic import fake_encoder, user_number
 
 
 def test_ranking_metrics_by_hand() -> None:
@@ -77,17 +77,6 @@ def test_text_embeddings_are_cached_per_text(tmp_path: Path) -> None:
     np.testing.assert_allclose(first[1], second[0])
 
 
-@pytest.fixture(scope="module")
-def trained(tmp_path_factory) -> tuple[Path, Path]:
-    folder = tmp_path_factory.mktemp("synthetic")
-    export = write_export(folder / "export")
-    config = TrainConfig(
-        max_epochs=8, patience=8, batch_size=128, eval_users=500, test_users=0, mf_epochs=5, n_min=3
-    )
-    bundle = train(export, folder / "bundles", config, device="cpu", name="test", encode=fake_encoder)
-    return export, bundle
-
-
 def test_training_learns_preferences_and_beats_popularity(trained) -> None:
     _, bundle_folder = trained
     metrics = load_bundle(bundle_folder).metrics
@@ -108,13 +97,9 @@ def test_new_books_are_ranked_by_the_readers_taste(trained) -> None:
     kinds = np.array(["sea" in text for text in data.features.texts])
     new_books = np.flatnonzero(data.item_counts == 0)
     users = data.test.users
-    likes_sea = np.array([int(data.user_ids[u - 1][1:]) % 2 == 0 for u in users])
+    likes_sea = np.array([user_number(data.user_ids[u - 1]) % 2 == 0 for u in users])
 
-    scores = model.score_catalog(
-        torch.as_tensor(users),
-        torch.as_tensor(data.test.histories.items[users]),
-        torch.as_tensor(data.test.histories.weights[users]),
-    ).numpy()
+    scores = model.score_catalog(users, data.test.histories.items[users], data.test.histories.weights[users])
 
     correct = total = 0
     for row, likes in enumerate(likes_sea):
@@ -129,33 +114,33 @@ def test_catalog_scores_equal_pairwise_scores(trained) -> None:
     export, bundle_folder = trained
     model = load_bundle(bundle_folder).model
     data = build_training_data(load_export(export), history_length=50)
-    users = torch.as_tensor(data.test.users[:4])
-    history = torch.as_tensor(data.test.histories.items[data.test.users[:4]])
-    weights = torch.as_tensor(data.test.histories.weights[data.test.users[:4]])
+    users = data.test.users[:4]
+    history = data.test.histories.items[users]
+    weights = data.test.histories.weights[users]
 
     catalog = model.score_catalog(users, history, weights, chunk=7)
-    with torch.no_grad():
-        content = model.content()
-        items = torch.tensor([[0, 5, 59]] * 4)
-        pairwise = model.score(users, items, model.user_profile(content, history, weights), content).z
+    content = model.content()
+    items = np.array([[0, 5, 59]] * 4)
+    pairwise = model.score(users, items, model.user_profile(content, history, weights), content).z
 
-    torch.testing.assert_close(catalog[:, [0, 5, 59]], pairwise)
+    np.testing.assert_allclose(catalog[:, [0, 5, 59]], ops.convert_to_numpy(pairwise), rtol=1e-5, atol=1e-6)
 
 
 def test_new_books_use_the_content_projection(trained) -> None:
     _, bundle_folder = trained
     model = load_bundle(bundle_folder).model
-    cold = int(torch.nonzero(model.item_counts < model.config.n_min)[0])
-    users = torch.tensor([1])
+    cold = int(np.flatnonzero(ops.convert_to_numpy(model.item_counts) < model.config.n_min)[0])
+    users, items = np.array([1]), np.array([[cold]])
     content = model.content()
-    profile = torch.zeros(1, model.config.content_dim)
+    profile = np.zeros((1, model.config.content_dim), dtype=np.float32)
 
-    before = model.score(users, torch.tensor([[cold]]), profile, content).z
-    with torch.no_grad():
-        model.item_gmf.weight[cold] += 100.0  # the id vector of a cold book is not used
-    after = model.score(users, torch.tensor([[cold]]), profile, content).z
+    before = ops.convert_to_numpy(model.score(users, items, profile, content).z)
+    vectors = ops.convert_to_numpy(model.item_gmf.embeddings).copy()
+    vectors[cold] += 100.0  # the id vector of a cold book is not used
+    model.item_gmf.embeddings.assign(vectors)
+    after = ops.convert_to_numpy(model.score(users, items, profile, content).z)
 
-    torch.testing.assert_close(before, after)
+    np.testing.assert_allclose(before, after)
 
 
 def test_bundle_round_trip_gives_the_same_scores(trained) -> None:
@@ -163,22 +148,18 @@ def test_bundle_round_trip_gives_the_same_scores(trained) -> None:
     bundle = load_bundle(bundle_folder)
     data = build_training_data(load_export(export))
     rebuilt = build_model(data, bundle.text_embeddings, TrainConfig(n_min=3))
-    rebuilt.load_state_dict(bundle.model.state_dict())
-    rebuilt.eval()
+    rebuilt.set_weights(bundle.model.get_weights())
 
     ks, n = (10,), len(bundle.book_ids)
-    args = (data.test, None, torch.device("cpu"))
     original = evaluate(
         bundle.model.score_catalog,
-        args[0],
+        data.test,
         new_metrics(ks, n, bundle.text_embeddings, data.item_counts, len(data.user_ids)),
-        args[2],
     )
     again = evaluate(
         rebuilt.score_catalog,
-        args[0],
+        data.test,
         new_metrics(ks, n, bundle.text_embeddings, data.item_counts, len(data.user_ids)),
-        args[2],
     )
 
     assert original == again

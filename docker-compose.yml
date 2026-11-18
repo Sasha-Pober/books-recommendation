@@ -40,11 +40,15 @@ services:
     environment:
       RECSYS_DATABASE_URL: postgresql://${POSTGRES_USER:-bookstore}:${POSTGRES_PASSWORD:-bookstore}@postgres:5432/${POSTGRES_DB:-bookstore}
       RECSYS_SERVICE_KEY: ${RECSYS_SERVICE_KEY:-dev-recsys-service-key-change-me}
+      # The text model for books added after training is downloaded here on first need (~0.5 GB, once).
+      HF_HOME: /app/hf-cache
     # No published port: only the API calls it, over the internal network.
     expose:
       - "8000"
     volumes:
-      - recsys-artifacts:/app/artifacts
+      # Models imported on the host with `uv run recsys import-model` (read-only for the service).
+      - ./recsys/artifacts:/app/artifacts:ro
+      - recsys-hf-cache:/app/hf-cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,4 +77,4 @@ services:
 
 volumes:
   postgres-data:
-  recsys-artifacts:
+  recsys-hf-cache:

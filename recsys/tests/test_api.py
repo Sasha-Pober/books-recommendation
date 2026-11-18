@@ -10,12 +10,14 @@ from recsys.api.schemas import (
     RecommendationResponse,
     SimilarRequest,
 )
+from recsys.serving import ModelNotFound
 
 BOOK = UUID("01990000-0000-7000-8000-000000000001")
 
 
 class FakeRecommender:
     model_version_id = 3
+    name = "fake"
 
     def __init__(self) -> None:
         self.home_requests: list[HomeRequest] = []
@@ -29,6 +31,8 @@ class FakeRecommender:
 
     def find_similar(self, request: SimilarRequest) -> RecommendationResponse:
         return RecommendationResponse(model_version_id=self.model_version_id, items=[])
+
+    def refresh_if_stale(self) -> None: ...
 
 
 def home_body(**overrides) -> dict:
@@ -87,8 +91,28 @@ def test_similar_requires_a_book_id(client: TestClient) -> None:
     assert missing.status_code == 422
 
 
-def test_model_activation_is_not_available_yet(client: TestClient) -> None:
-    assert client.post("/v1/models/1/activate").status_code == 503
+class FakeLoader:
+    def __init__(self, known: set[int]) -> None:
+        self.known = known
+        self.activated: list[int] = []
+
+    def activate(self, version_id: int) -> None:
+        if version_id not in self.known:
+            raise ModelNotFound(f"Model version {version_id} does not exist.")
+        self.activated.append(version_id)
+
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+
+def test_model_activation(client: TestClient) -> None:
+    loader = FakeLoader(known={3})
+    client.app.state.loader = loader
+
+    assert client.post("/v1/models/3/activate").json() == {"model_version_id": 3}
+    assert client.post("/v1/models/9/activate").status_code == 404
+    assert loader.activated == [3]
 
 
 def test_health_is_public_and_reports_missing_database_and_model(client: TestClient) -> None:

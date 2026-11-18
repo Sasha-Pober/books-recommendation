@@ -3,10 +3,11 @@
 import logging
 from collections.abc import Sequence
 
+import keras
 import numpy as np
-import torch
-import torch.nn.functional as F
-from torch import Tensor, nn
+from keras import layers, ops
+
+from recsys.model.network import inference_mode
 
 logger = logging.getLogger(__name__)
 
@@ -14,11 +15,11 @@ logger = logging.getLogger(__name__)
 class PopularityScorer:
     """The same ranking for everyone: books with the most positive interactions in train."""
 
-    def __init__(self, item_counts: np.ndarray, device: torch.device) -> None:
-        self.scores = torch.as_tensor(np.log1p(item_counts), dtype=torch.float32, device=device)
+    def __init__(self, item_counts: np.ndarray) -> None:
+        self.scores = np.log1p(item_counts).astype(np.float32)
 
-    def __call__(self, users: Tensor, history: Tensor, weights: Tensor) -> Tensor:
-        return self.scores.unsqueeze(0).expand(users.shape[0], -1).clone()
+    def __call__(self, users: np.ndarray, history: np.ndarray, weights: np.ndarray) -> np.ndarray:
+        return np.tile(self.scores, (len(users), 1))
 
 
 class TfidfScorer:
@@ -31,64 +32,85 @@ class TfidfScorer:
         vectorizer = TfidfVectorizer(max_features=max_features, sublinear_tf=True, min_df=2)
         self.matrix = vectorizer.fit_transform(texts).tocsr()  # rows are L2-normalized
 
-    def __call__(self, users: Tensor, history: Tensor, weights: Tensor) -> Tensor:
+    def __call__(self, users: np.ndarray, history: np.ndarray, weights: np.ndarray) -> np.ndarray:
         from scipy import sparse
 
-        h, w = history.cpu().numpy(), weights.cpu().numpy() * (history.cpu().numpy() >= 0)
-        rows = np.repeat(np.arange(h.shape[0]), h.shape[1])
+        w = weights * (history >= 0)
+        rows = np.repeat(np.arange(history.shape[0]), history.shape[1])
         selector = sparse.csr_matrix(
-            (w.ravel(), (rows, h.clip(min=0).ravel())), shape=(h.shape[0], self.matrix.shape[0])
+            (w.ravel(), (rows, history.clip(min=0).ravel())), shape=(history.shape[0], self.matrix.shape[0])
         )
         profiles = selector @ self.matrix
-        scores = (profiles @ self.matrix.T).toarray()
-        return torch.as_tensor(scores, dtype=torch.float32, device=users.device)
+        return (profiles @ self.matrix.T).toarray().astype(np.float32)
 
 
-class MatrixFactorization(nn.Module):
+class _MfTriples(keras.utils.PyDataset):
+    """(user, positive, random negative) batches for BPR-MF; reshuffled every epoch."""
+
+    def __init__(
+        self, users: np.ndarray, items: np.ndarray, n_items: int, batch_size: int, seed: int
+    ) -> None:
+        super().__init__()
+        self.users, self.items, self.n_items, self.batch_size = users, items, n_items, batch_size
+        self.rng = np.random.default_rng(seed)
+        self.order = self.rng.permutation(len(users))
+
+    def __len__(self) -> int:
+        return -(-len(self.users) // self.batch_size)
+
+    def __getitem__(self, index: int):
+        batch = self.order[index * self.batch_size : (index + 1) * self.batch_size]
+        negatives = self.rng.integers(0, self.n_items, len(batch))
+        inputs = {"users": self.users[batch], "positives": self.items[batch], "negatives": negatives}
+        return inputs, np.zeros(len(batch), dtype=np.float32)
+
+    def on_epoch_end(self) -> None:
+        self.order = self.rng.permutation(len(self.users))
+
+
+class MatrixFactorization(keras.Model):
     """BPR-MF: score = p_u · q_i. Books without train interactions keep their random initial vectors,
     which is why it can't handle cold start."""
 
-    def __init__(self, n_users: int, n_items: int, dim: int = 64) -> None:
+    def __init__(self, n_users: int, n_items: int, dim: int = 64, l2: float = 1e-6, seed: int = 0) -> None:
         super().__init__()
-        self.users = nn.Embedding(n_users, dim)
-        self.items = nn.Embedding(n_items, dim)
-        nn.init.normal_(self.users.weight, std=0.01)
-        nn.init.normal_(self.items.weight, std=0.01)
+        small = keras.initializers.RandomNormal(stddev=0.01, seed=seed)
+        self.user_vectors = layers.Embedding(n_users, dim, embeddings_initializer=small)
+        self.item_vectors = layers.Embedding(n_items, dim, embeddings_initializer=small)
+        self.l2 = l2
+        self.n_items = n_items
 
-    def fit(
+    def call(self, inputs):
+        p = self.user_vectors(inputs["users"])
+        q_pos, q_neg = self.item_vectors(inputs["positives"]), self.item_vectors(inputs["negatives"])
+        difference = ops.sum(p * q_pos, axis=-1) - ops.sum(p * q_neg, axis=-1)
+        penalty = (ops.sum(p * p) + ops.sum(q_pos * q_pos) + ops.sum(q_neg * q_neg)) / ops.cast(
+            ops.shape(p)[0], "float32"
+        )
+        return {"difference": difference, "penalty": penalty}
+
+    def compute_loss(self, x=None, y=None, y_pred=None, sample_weight=None, training=True):
+        """BPR: −log σ(score(u, positive) − score(u, negative)), plus L2 on the vectors used."""
+        return -ops.mean(ops.log_sigmoid(y_pred["difference"])) + self.l2 * y_pred["penalty"]
+
+    def fit_triples(
         self,
         train_users: np.ndarray,
         train_items: np.ndarray,
         epochs: int,
-        device: torch.device,
         batch_size: int = 4096,
         lr: float = 1e-3,
-        l2: float = 1e-6,
         seed: int = 0,
     ) -> "MatrixFactorization":
-        self.to(device)
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        users = torch.tensor(train_users, device=device)
-        items = torch.tensor(train_items, device=device)
-        generator = torch.Generator(device=device).manual_seed(seed)
-        n_items = self.items.num_embeddings
-        for epoch in range(epochs):
-            order = torch.randperm(len(users), device=device, generator=generator)
-            total = 0.0
-            for start in range(0, len(order), batch_size):
-                batch = order[start : start + batch_size]
-                u, pos = users[batch], items[batch]
-                neg = torch.randint(0, n_items, pos.shape, device=device, generator=generator)
-                pu, qp, qn = self.users(u), self.items(pos), self.items(neg)
-                loss = -F.logsigmoid((pu * qp).sum(-1) - (pu * qn).sum(-1)).mean()
-                loss = loss + l2 * (pu.pow(2).sum() + qp.pow(2).sum() + qn.pow(2).sum()) / len(batch)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                total += loss.item() * len(batch)
-            logger.info("BPR-MF epoch %d: loss %.4f", epoch + 1, total / len(order))
+        self.compile(optimizer=keras.optimizers.Adam(lr))
+        history = self.fit(
+            _MfTriples(train_users, train_items, self.n_items, batch_size, seed), epochs=epochs, verbose=0
+        )
+        for epoch, loss in enumerate(history.history["loss"], 1):
+            logger.info("BPR-MF epoch %d: loss %.4f", epoch, loss)
         return self
 
-    @torch.no_grad()
-    def score(self, users: Tensor, history: Tensor, weights: Tensor) -> Tensor:
-        return self.users(users) @ self.items.weight.T
+    def score(self, users: np.ndarray, history: np.ndarray, weights: np.ndarray) -> np.ndarray:
+        with inference_mode():
+            p = self.user_vectors(users)
+            return ops.convert_to_numpy(ops.matmul(p, ops.transpose(self.item_vectors.embeddings)))

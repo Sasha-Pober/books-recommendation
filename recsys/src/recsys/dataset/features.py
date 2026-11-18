@@ -52,22 +52,32 @@ def encode_books(
     book_genres: pd.DataFrame,
     max_authors: int = 3,
     max_genres: int = 4,
+    vocabularies: dict[str, list[str]] | None = None,
+    numeric_stats: dict[str, float] | None = None,
 ) -> BookFeatures:
+    """Encodes books with vocabularies and statistics built from them, or (at inference, for books added
+    after training) with the trained model's `vocabularies` and `numeric_stats`, so the encoding matches
+    training."""
     books = books.sort_values("id").reset_index(drop=True)
     book_ids = books["id"].astype(str).tolist()
     row = {book_id: i for i, book_id in enumerate(book_ids)}
 
-    author_vocab = Vocabulary.build(book_authors["author_id"])
-    genre_vocab = Vocabulary.build(book_genres["genre_id"])
-    publisher_vocab = Vocabulary.build(books["publisher_id"])
-    language_vocab = Vocabulary.build(books["language"])
+    if vocabularies is not None:
+        author_vocab, genre_vocab, publisher_vocab, language_vocab = (
+            Vocabulary(vocabularies[name]) for name in ("authors", "genres", "publishers", "languages")
+        )
+    else:
+        author_vocab = Vocabulary.build(book_authors["author_id"])
+        genre_vocab = Vocabulary.build(book_genres["genre_id"])
+        publisher_vocab = Vocabulary.build(books["publisher_id"])
+        language_vocab = Vocabulary.build(books["language"])
 
     authors = _padded(book_authors, "author_id", author_vocab, row, max_authors)
     genres = _padded(book_genres, "genre_id", genre_vocab, row, max_genres)
 
     years = pd.to_numeric(books["year"], errors="coerce")
     log_pages = np.log1p(pd.to_numeric(books["pages"], errors="coerce"))
-    stats = {
+    stats = numeric_stats or {
         "year_mean": float(years.mean()) if years.notna().any() else 0.0,
         "year_std": float(years.std()) if years.notna().sum() > 1 else 1.0,
         "log_pages_mean": float(log_pages.mean()) if log_pages.notna().any() else 0.0,

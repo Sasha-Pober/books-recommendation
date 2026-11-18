@@ -11,12 +11,13 @@ WORKDIR /app
 
 # Dependencies first, in their own layer: cached until pyproject.toml / uv.lock change.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+# The CPU build of PyTorch: the service loads models and runs inference on the CPU.
+RUN uv sync --frozen --no-dev --extra cpu --no-install-project
 
 COPY src/ src/
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --extra cpu
 
-RUN useradd --system --uid 10001 recsys && mkdir -p /app/artifacts && chown recsys /app/artifacts
+RUN useradd --system --uid 10001 recsys && mkdir -p /app/hf-cache && chown recsys /app/hf-cache
 USER recsys
 
 EXPOSE 8000

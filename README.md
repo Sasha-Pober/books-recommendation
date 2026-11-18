@@ -6,7 +6,7 @@ A book store with a neural-network-based recommendation system.
 |---|---|---|
 | `backend/` | C# / ASP.NET Core 10, EF Core, PostgreSQL, Redis | ✅ store API, unit + integration tests |
 | `frontend/` | TypeScript / Angular | planned |
-| `recsys/` | Python / FastAPI / PyTorch recommendation service | 🚧 data import, model and training done; model import + inference next |
+| `recsys/` | Python / FastAPI / Keras 3 (PyTorch backend) recommendation service | ✅ data import, training, model import, inference; awaiting the first trained model |
 
 ## Backend architecture
 
@@ -199,7 +199,7 @@ recsys/
 └── tests/               pytest
 ```
 
-**Current state:** no model is imported yet. The recommendation endpoints answer 503 with `Retry-After`, and so does `POST /v1/models/{id}/activate`; the API uses its own fallback meanwhile. `GET /health` (no key needed) reports whether the database is reachable and which model version is loaded.
+**Without an imported model**, the recommendation endpoints answer 503 with `Retry-After`, and the API uses its own fallback. `GET /health` (no key needed) reports whether the database is reachable and which model version is loaded.
 
 **Training workflow (offline).** Training takes long, so it isn't triggered from the store:
 
@@ -261,13 +261,65 @@ When using the data, cite:
 uv run --extra cpu recsys train --data data/export/<UTC time> --out artifacts/bundles
 ```
 
-The result is a bundle folder: weights, ids, vocabularies, text embeddings, `metrics.json` and `training.json`. On a CPU an epoch takes about 7 minutes for the Poetry subset.
+The result is a bundle folder: Keras weights (`model.weights.h5`), ids, vocabularies, text embeddings, `metrics.json` and `training.json`. On a CPU an epoch takes about 10 minutes for the Poetry subset, plus validation.
+
+**Framework.** The model is written in **Keras 3** (`recsys/model/network.py`, `train.py`) and runs on the **PyTorch backend**. sentence-transformers, which produces the text embeddings, needs PyTorch anyway, so only one framework is installed.
+- **Training:** an idiomatic `model.fit(...)`:
+  - `TripleBatches` (a `keras.utils.PyDataset`) samples the 4 negatives, the leave-one-out histories and the DropoutNet mask per batch;
+  - `TrainingModel.compute_loss` returns L_BPR + β·L_align + λ‖Θ‖²;
+  - `ValidationCallback` computes the validation NDCG@10, keeps the best weights and stops early.
+- **Backend:** the model code uses only `keras.ops`, so another backend can be used by setting `KERAS_BACKEND` before Keras is first imported. The PyTorch backend is the tested one. Bundles from before the switch (format 1, PyTorch weights) can't be imported; retrain instead.
+
+**Importing a trained model:**
+
+```bash
+cd recsys
+uv run --extra cpu recsys import-model ~/Downloads/model.zip    # or a bundle folder
+```
+
+- **Checks:** that the bundle loads, and how many of its books still exist in the store. Books added after training are handled as cold start.
+- **Files:** copies the bundle to `recsys/artifacts/models/<name>/`, which Docker Compose mounts read-only into the service.
+- **Database:** writes `model_versions` (with all metrics) and the book text vectors to `book_embeddings` (`vector(384)`).
+- **Activation:** `--activate auto`, the default, activates the model only if there is no active model or the new one has a higher test NDCG@10. `--activate yes` / `--activate no` override that.
+
+**Activation** is the `is_active` flag in `model_versions`. The service loads the active version at startup and checks the flag every 30 s (`RECSYS_MODEL_POLL_SECONDS`), so a model activated by the import command is picked up without a restart.
+
+`POST /api/admin/models/{id}/activate` goes through the service instead: it loads the model first and only then switches the flag. If loading fails, the previous model stays active.
+
+**Inference** (`recsys/inference.py`) follows the spec's steps, on live store data.
+
+"Recommended for you":
+1. **Profile:** the user's recent events, or for a guest the session's, are read from PostgreSQL (up to 500). This gives u_c, with the same rules as in training: the maximum weight per book, the newest 50 books, and a half-life decay. Ages are measured from the newest event, so old imported data doesn't decay to zero. p_u is used if training knew the user.
+2. **No history and an unknown user:** an empty list, so the API shows its bestsellers and new releases.
+3. **Candidates:**
+   - **Content:** 200 nearest to u_c (FAISS, content vectors c_i).
+   - **Collaborative:** 200 nearest to p_u (FAISS, item vectors q_i).
+   - **New books:** the popular new books.
+
+   Excluded (bought, rated) and out-of-stock books are removed.
+4. **Ranking and MMR:** candidates are ranked by ŷ_ui, then re-ranked with MMR (μ = 0.8) for diversity.
+5. **Explanation:** "new from a favourite author" if the book is new and shares an author with the history. Otherwise the dominant component decides: α·s_cf gives `liked_by_similar_readers`, and (1−α)·γ·s_c gives `similar_to_viewed`.
+
+"Similar books": content similarity to the book, averaged with collaborative similarity when both books have at least `n_min` interactions. The explanation is `same_author`, `liked_by_similar_readers` or `similar_content`.
+
+**Books added after training** take part as cold-start items:
+- **Encoding:** they're encoded with the model's vocabularies, and their text is embedded with the same frozen sentence-transformers model. In Docker it's downloaded once into the `recsys-hf-cache` volume.
+- **Collaborative part:** NeuMF uses their content projection W_q c_i.
+
+The catalog (books, stock, authors, the popular new books) is reloaded every 5 minutes (`RECSYS_CATALOG_REFRESH_SECONDS`).
+
+**Latency** on the Poetry catalog (36k books, 117k readers, CPU), excluding the history query:
+
+| | p50 | p95 |
+|---|---|---|
+| Recommended for you (20 books) | 4.6 ms | 6.8 ms |
+| Similar books (10 books) | 1.3 ms | 1.9 ms |
 
 **Running locally:**
 
 ```bash
 cd recsys
-uv sync --extra cpu          # .venv with Python 3.12 and the CPU build of PyTorch (or --extra cu128 for a GPU)
+uv sync --extra cpu          # .venv with Python 3.12, Keras and the CPU build of PyTorch (or --extra cu128 for a GPU)
 cp .env.example .env         # database URL + service key
 uv run recsys serve          # http://localhost:8000/docs
 uv run --extra cpu pytest    # tests

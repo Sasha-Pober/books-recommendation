@@ -43,6 +43,17 @@ def main(argv: list[str] | None = None) -> None:
         "--cache-dir", type=Path, default=Path("artifacts/cache"), help="text embedding cache"
     )
 
+    importing = commands.add_parser(
+        "import-model", help="register a trained bundle (folder or zip) in the store"
+    )
+    importing.add_argument("source", type=Path, help="bundle folder, or model.zip downloaded from Kaggle")
+    importing.add_argument(
+        "--activate",
+        choices=["auto", "yes", "no"],
+        default="auto",
+        help="auto: only if there is no active model or the new one has a higher test NDCG@10",
+    )
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -70,6 +81,10 @@ def main(argv: list[str] | None = None) -> None:
         from recsys.goodreads.importer import import_goodreads
 
         import_goodreads(settings.database_url, args.data_dir, args.genre, args.min_user_books)
+    elif args.command == "import-model":
+        from recsys.model.importer import Activation, import_model
+
+        import_model(settings.database_url, args.source, settings.models_dir, Activation(args.activate))
     elif args.command == "export-dataset":
         from recsys.dataset.export import export_dataset
 

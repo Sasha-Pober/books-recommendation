@@ -11,13 +11,26 @@ from recsys.dataset.export import FORMAT_VERSION
 TEXT_DIM = 16
 
 
+def book_id(i: int) -> str:
+    return f"00000000-0000-4000-8000-{i:012d}"
+
+
+def user_id(u: int) -> str:
+    """Even readers like sea poetry, odd ones war poetry."""
+    return f"00000000-0000-4000-9000-{u:012d}"
+
+
+def user_number(user: str) -> int:
+    return int(user[-12:])
+
+
 def write_export(folder: Path, n_users: int = 120, n_books: int = 60, seed: int = 0) -> Path:
     rng = np.random.default_rng(seed)
     start = pd.Timestamp("2016-01-01", tz="UTC")
     kinds = np.array(["sea", "war"])[np.arange(n_books) % 2]
     books = pd.DataFrame(
         {
-            "id": [f"b{i:03d}" for i in range(n_books)],
+            "id": [book_id(i) for i in range(n_books)],
             "title": [f"{kind} poems {i}" for i, kind in enumerate(kinds)],
             "annotation": [f"Poems about the {kind}." for kind in kinds],
             "language": "en",
@@ -34,14 +47,14 @@ def write_export(folder: Path, n_users: int = 120, n_books: int = 60, seed: int 
         likes = "sea" if u % 2 == 0 else "war"
         liked = [i for i in range(n_books - 6) if kinds[i] == likes]
         for i in rng.choice(liked, size=12, replace=False):
-            rows.append((f"u{u:03d}", f"b{i:03d}", 1.0, start + pd.Timedelta(days=int(rng.integers(0, 300)))))
+            rows.append((user_id(u), book_id(i), 1.0, start + pd.Timedelta(days=int(rng.integers(0, 300)))))
         for i in rng.choice(np.arange(n_books - 6), size=2, replace=False):  # noise
-            rows.append((f"u{u:03d}", f"b{i:03d}", 0.5, start + pd.Timedelta(days=int(rng.integers(0, 300)))))
+            rows.append((user_id(u), book_id(i), 0.5, start + pd.Timedelta(days=int(rng.integers(0, 300)))))
         late = [i for i in range(n_books - 6, n_books) if kinds[i] == likes]
         rows.append(
             (
-                f"u{u:03d}",
-                f"b{rng.choice(late):03d}",
+                user_id(u),
+                book_id(int(rng.choice(late))),
                 1.0,
                 start + pd.Timedelta(days=int(rng.integers(340, 360))),
             )

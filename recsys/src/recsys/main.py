@@ -8,6 +8,8 @@ from recsys.api.routes import router
 from recsys.config import Settings
 from recsys.db import Database
 from recsys.recommender import ModelRegistry
+from recsys.serving import ModelLoader, load_model
+from recsys.sources import DatabaseCatalog, DatabaseHistory
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -19,9 +21,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.database.open()
+        app.state.loader.start()  # loads the active model, then checks for changes periodically
         try:
             yield
         finally:
+            app.state.loader.stop()
             app.state.database.close()
 
     app = FastAPI(
@@ -32,5 +36,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.database = Database(settings.database_url, settings.database_timeout)
     app.state.registry = ModelRegistry()
+    connect = app.state.database.pool.connection
+    catalog, history = DatabaseCatalog(connect), DatabaseHistory(connect)
+
+    def load(version, models_dir):
+        from recsys.inference import InferenceSettings
+
+        return load_model(
+            version,
+            models_dir,
+            catalog,
+            history,
+            InferenceSettings(catalog_refresh_seconds=settings.catalog_refresh_seconds),
+        )
+
+    app.state.loader = ModelLoader(
+        connect, app.state.registry, settings.models_dir, settings.model_poll_seconds, load
+    )
     app.include_router(router)
     return app
