@@ -15,5 +15,8 @@ public interface IOrderRepository
     /// <summary>In-stock books ranked by copies sold since <paramref name="since"/> (cancelled orders excluded).</summary>
     Task<IReadOnlyList<ScoredBook>> GetBestsellersAsync(DateTime since, int count, CancellationToken cancellationToken);
 
+    /// <summary>Time of the newest order, or null if there are none.</summary>
+    Task<DateTime?> GetLatestOrderTimeAsync(CancellationToken cancellationToken);
+
     void Add(Order order);
 }

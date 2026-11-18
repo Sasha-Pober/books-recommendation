@@ -42,5 +42,8 @@ internal sealed class OrderRepository(BookStoreDbContext db) : IOrderRepository
         return sold.Select(x => new ScoredBook(x.BookId, x.Sold)).ToList();
     }
 
+    public Task<DateTime?> GetLatestOrderTimeAsync(CancellationToken cancellationToken) =>
+        db.Orders.MaxAsync(o => (DateTime?)o.CreatedAt, cancellationToken);
+
     public void Add(Order order) => db.Orders.Add(order);
 }

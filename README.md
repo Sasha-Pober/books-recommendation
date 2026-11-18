@@ -56,7 +56,25 @@ PostgreSQL 17 with pgvector. Table names are snake_case.
   - `genreId` includes subgenres;
   - `authorId`, `publisherId`, `seriesId`, `language`;
   - `minPrice`/`maxPrice`, `minYear`/`maxYear`, `inStockOnly`.
-- **`sort`:** `Relevance` (the default when searching), `Title` (the default otherwise), `PriceAscending`, `PriceDescending`, `Newest`, `Year`, `Rating`. Books without a year or without ratings go last.
+- **`sort`:** `Relevance` (the default when searching), `Title` (the default otherwise), `PriceAscending`, `PriceDescending`, `Newest`, `Year`, `Rating`. Books without a year or without ratings go last. `Rating` is a Bayesian average, (sum + 10·m) / (count + 10) with m the mean of all ratings, so a book with one 5-star rating doesn't outrank one with hundreds of 4.5s.
+
+**Performance.** These were measured on the imported Goodreads catalog (36k books, 980k ratings), p50 through the API:
+
+| | Before | After |
+|---|---|---|
+| Search (most queries) | ~0.8 s | 10–40 ms |
+| Search with thousands of matches ("love", 5.7k) | ~0.8 s | ~140 ms |
+| Sort by rating | ~3.5 s | ~160 ms |
+
+What makes it fast:
+- **Search:** it's a union of three indexed lookups:
+  - full text (GIN on `search_vector`);
+  - part of the title (trigram GIN on `books.title`);
+  - part of an author's name (trigram GIN on `authors.full_name`, which needs `pg_trgm`).
+
+  The previous single `OR` condition made PostgreSQL check every book.
+- **Rating:** `books.rating_count` and `rating_sum` hold the counters, kept in the same transaction as every rating. The `CatalogPerformance` migration backfilled them, and `recsys import-goodreads` recomputes them. Book cards read them too, so a page needs no rating query.
+- **Ukrainian dictionary:** PostgreSQL loads it per connection on first use, which takes ~0.5 s and ~64 MB of memory per connection. Every new connection loads it as it opens, and at startup the API opens `Minimum Pool Size` connections (4 in development and Compose), which the pool then keeps. So no user search waits for it. Above that number, a new connection pays the ~0.5 s when it opens.
 
 Reference lists for the filters: `GET /api/genres` (flat, with `parentId`), `/api/authors`, `/api/publishers`, `/api/series`.
 
@@ -134,7 +152,7 @@ Each item has a `reason`, a Ukrainian `explanation` (e.g. «Схожа на кн
   - **Circuit breaker:** after 50% failures among at least 10 calls in 30 s, the service isn't called for 15 s.
   - **No retries:** there's no time for them within the 100 ms budget.
 - **Fallback:** if the call fails, times out or returns nothing, `BaselineRecommendationEngine` answers instead:
-  - home: bestsellers (copies sold in 90 days, padded with books trending by events) interleaved with new releases;
+  - home: bestsellers (copies sold in the 90 days before the latest order, padded with books trending in the 30 days before the latest event) interleaved with new releases. The windows end at the latest activity rather than now, which is the same thing in a live store and still works on imported historical data;
   - similar books: shared authors and genres.
 - **Without a `BaseUrl`,** the baseline is the only engine.
 

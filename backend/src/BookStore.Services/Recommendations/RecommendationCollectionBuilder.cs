@@ -26,8 +26,11 @@ public sealed class RecommendationCollectionBuilder(
 
     private async Task<IReadOnlyList<ScoredBook>> BuildBestsellersAsync(CancellationToken cancellationToken)
     {
+        // Windows end at the latest activity rather than now: in a live store that is now, and with imported
+        // historical data (or a quiet period) the collections are still built from the latest activity.
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var sold = await orders.GetBestsellersAsync(now - BestsellerWindow, CollectionSize, cancellationToken);
+        var lastOrder = await orders.GetLatestOrderTimeAsync(cancellationToken) ?? now;
+        var sold = await orders.GetBestsellersAsync(lastOrder - BestsellerWindow, CollectionSize, cancellationToken);
         var result = sold.Select(b => b with { Reason = RecommendationReason.Bestseller }).ToList();
         if (result.Count >= CollectionSize)
         {
@@ -35,8 +38,12 @@ public sealed class RecommendationCollectionBuilder(
         }
 
         // Few sales yet (new store): continue with books that are popular by views, cart and wishlist events.
+        var lastEvent = await interactions.GetLatestEventTimeAsync(cancellationToken) ?? now;
         var trending = await interactions.GetPopularBooksAsync(
-            now - TrendingWindow, CollectionSize - result.Count, result.Select(b => b.BookId).ToList(), cancellationToken);
+            lastEvent - TrendingWindow,
+            CollectionSize - result.Count,
+            result.Select(b => b.BookId).ToList(),
+            cancellationToken);
         result.AddRange(trending.Select(b => b with { Reason = RecommendationReason.Trending }));
         return result;
     }

@@ -16,7 +16,13 @@ public class RatingServiceTests : ShoppingTestBase
     private readonly IIdentityService _identity = Substitute.For<IIdentityService>();
     private readonly Guid _bookId = Guid.NewGuid();
 
-    public RatingServiceTests() => Books.ExistsAsync(_bookId, Arg.Any<CancellationToken>()).Returns(true);
+    public RatingServiceTests()
+    {
+        Books.ExistsAsync(_bookId, Arg.Any<CancellationToken>()).Returns(true);
+        // Run the transaction body directly.
+        UnitOfWork.InTransactionAsync(Arg.Any<Func<CancellationToken, Task<Rating>>>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<Func<CancellationToken, Task<Rating>>>()(CancellationToken.None));
+    }
 
     [Theory]
     [InlineData(5, 1.0)]
@@ -55,4 +61,34 @@ public class RatingServiceTests : ShoppingTestBase
 
     private RatingService CreateService() =>
         new(_ratings, Books, Users, Interactions, _identity, CurrentUser, UnitOfWork);
+
+    [Fact]
+    public async Task NewRating_AddsOneRatingAndItsScoreToTheBook()
+    {
+        await CreateService().RateAsync(_bookId, new RateBookRequest { Score = 4 }, CancellationToken.None);
+
+        await Books.Received(1).AdjustRatingsAsync(_bookId, 1, 4, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ChangedRating_AddsOnlyTheDifference()
+    {
+        _ratings.GetAsync(UserId, _bookId, Arg.Any<CancellationToken>())
+            .Returns(new Rating { UserId = UserId, BookId = _bookId, Score = 2 });
+
+        await CreateService().RateAsync(_bookId, new RateBookRequest { Score = 5 }, CancellationToken.None);
+
+        await Books.Received(1).AdjustRatingsAsync(_bookId, 0, 3, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UnchangedScore_LeavesTheCountersAlone()
+    {
+        _ratings.GetAsync(UserId, _bookId, Arg.Any<CancellationToken>())
+            .Returns(new Rating { UserId = UserId, BookId = _bookId, Score = 4 });
+
+        await CreateService().RateAsync(_bookId, new RateBookRequest { Score = 4, ReviewText = "edited" }, CancellationToken.None);
+
+        await Books.DidNotReceiveWithAnyArgs().AdjustRatingsAsync(default, default, default, default);
+    }
 }

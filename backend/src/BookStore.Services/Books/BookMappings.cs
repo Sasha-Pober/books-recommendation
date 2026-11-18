@@ -1,5 +1,4 @@
 using BookStore.Domain.Entities;
-using BookStore.Domain.Recommendations;
 using BookStore.Presentation.Authors;
 using BookStore.Presentation.Books;
 using BookStore.Presentation.Catalog;
@@ -10,7 +9,7 @@ namespace BookStore.Services.Books;
 internal static class BookMappings
 {
     /// <remarks>Expects authors, genres, publisher and series to be loaded.</remarks>
-    public static BookDto ToDto(this Book book, RatingSummary rating) => new(
+    public static BookDto ToDto(this Book book) => new(
         book.Id,
         book.Title,
         book.Isbn,
@@ -25,8 +24,8 @@ internal static class BookMappings
         book.Genres.OrderBy(g => g.Name).Select(g => new GenreDto(g.Id, g.Name, g.ParentId)).ToList(),
         book.Publisher is { } p ? new PublisherDto(p.Id, p.Name) : null,
         book.Series is { } s ? new SeriesDto(s.Id, s.Name) : null,
-        rating.Average,
-        rating.Count);
+        book.AverageRating,
+        book.RatingCount);
 
     /// <remarks>Expects authors to be loaded.</remarks>
     public static BookSummaryDto ToSummaryDto(this Book book) => new(
@@ -36,7 +35,4 @@ internal static class BookMappings
         book.CoverImageUrl,
         book.Price,
         book.Stock);
-
-    public static RatingSummary For(this IReadOnlyDictionary<Guid, RatingSummary> summaries, Guid bookId) =>
-        summaries.GetValueOrDefault(bookId, RatingSummary.Empty);
 }

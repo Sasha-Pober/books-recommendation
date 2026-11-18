@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 
@@ -75,6 +76,8 @@ public static class DependencyInjection
         AddRecommendations(services, configuration);
 
         services.AddScoped<DatabaseInitializer>();
+        services.AddHostedService(sp => new DatabaseWarmUp(
+            sp.GetRequiredService<IServiceScopeFactory>(), connectionString, sp.GetRequiredService<ILogger<DatabaseWarmUp>>()));
 
         return services;
     }

@@ -11,10 +11,6 @@ public interface IRatingRepository
 
     Task<IReadOnlyList<Guid>> GetRatedBookIdsAsync(Guid userId, CancellationToken cancellationToken);
 
-    /// <summary>Books without ratings are absent from the result.</summary>
-    Task<IReadOnlyDictionary<Guid, RatingSummary>> GetSummariesAsync(
-        IReadOnlyCollection<Guid> bookIds, CancellationToken cancellationToken);
-
     /// <summary>Ratings of the book, newest first, with the reviewer's name.</summary>
     Task<PagedList<BookReview>> GetReviewsAsync(Guid bookId, int page, int pageSize, CancellationToken cancellationToken);
 

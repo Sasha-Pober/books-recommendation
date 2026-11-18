@@ -94,10 +94,9 @@ internal sealed class RecommendationService(
             .ToList();
 
         var logIds = await LogImpressionsAsync(placement, ranked, result.ModelVersionId, cancellationToken);
-        var summaries = await ratings.GetSummariesAsync(ranked.Select(c => c.BookId).ToList(), cancellationToken);
         var items = ranked
             .Select((c, position) => new RecommendedBookDto(
-                inStock[c.BookId].ToDto(summaries.For(c.BookId)),
+                inStock[c.BookId].ToDto(),
                 c.Score,
                 c.Reason,
                 RecommendationExplanations.For(c.Reason),

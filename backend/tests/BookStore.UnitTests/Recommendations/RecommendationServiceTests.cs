@@ -28,7 +28,6 @@ public class RecommendationServiceTests
     {
         _engine.Name.Returns("ml");
         _currentUser.SessionId.Returns("session-1");
-        _ratings.GetSummariesAsync(default!, default).ReturnsForAnyArgs(new Dictionary<Guid, RatingSummary>());
         _logs.SaveAsync(default!, default).ReturnsForAnyArgs(call =>
         {
             var logs = call.Arg<IReadOnlyList<RecommendationLog>>();

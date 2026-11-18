@@ -13,6 +13,9 @@ public interface IInteractionRepository
 
     void AddRange(IEnumerable<Interaction> interactions);
 
+    /// <summary>Time of the newest event, or null if there are none.</summary>
+    Task<DateTime?> GetLatestEventTimeAsync(CancellationToken cancellationToken);
+
     /// <summary>Attaches the guest events of a browser session to the user who has just signed in. Runs immediately.</summary>
     Task<int> AssignGuestSessionAsync(string sessionId, Guid userId, CancellationToken cancellationToken);
 }

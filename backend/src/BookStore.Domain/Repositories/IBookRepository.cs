@@ -26,6 +26,12 @@ public interface IBookRepository
     /// </summary>
     Task<bool> TryReserveStockAsync(Guid bookId, int quantity, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Atomically changes the book's rating counters (a new rating: +1 and its score; a changed one: 0 and the
+    /// difference). Runs immediately; use inside the transaction that saves the rating.
+    /// </summary>
+    Task AdjustRatingsAsync(Guid bookId, int countDelta, int sumDelta, CancellationToken cancellationToken);
+
     /// <summary>Ordered books can't be deleted: order history must keep pointing at them.</summary>
     Task<bool> HasOrdersAsync(Guid id, CancellationToken cancellationToken);
 

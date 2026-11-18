@@ -81,6 +81,7 @@ public sealed class BookStoreDbContext(DbContextOptions<BookStoreDbContext> opti
         modelBuilder.Entity<IdentityRoleClaim<Guid>>().ToTable("role_claims");
 
         modelBuilder.HasPostgresExtension("vector");
+        modelBuilder.HasPostgresExtension("pg_trgm");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BookStoreDbContext).Assembly);
     }
 }

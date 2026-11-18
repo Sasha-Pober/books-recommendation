@@ -13,6 +13,9 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
 {
     private const string LikeEscapeCharacter = "\\";
 
+    /// <summary>C in the Bayesian average: how many "average" ratings every book starts with.</summary>
+    private const double RatingPriorWeight = 10;
+
     private IQueryable<Book> ReadOnlyWithDetails =>
         db.Books
             .AsNoTracking()
@@ -85,15 +88,20 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
             return Sort(books, filter.Sort is null or BookSort.Relevance ? BookSort.Title : filter.Sort.Value);
         }
 
-        // Full-text match uses the GIN index on search_vector; the substring match catches partial words
-        // («дюн») and author names, which are not part of the vector.
+        // Three ways to match, each answered by its own index: full-text (GIN on search_vector), a part of the
+        // title (trigram GIN on title, e.g. «дюн»), an author's name (trigram GIN on authors.full_name). As one
+        // OR condition PostgreSQL can't use the indexes and checks every book; as a union of matching ids it can.
         // websearch_to_tsquery must be written inline in each lambda: as a local variable EF can't translate it.
         var pattern = $"%{EscapeLikePattern(search)}%";
-        books = books.Where(b =>
-            EF.Property<NpgsqlTsVector>(b, BookConfiguration.SearchVector)
-                .Matches(EF.Functions.WebSearchToTsQuery(BookStoreDbContext.TextSearchConfig, search))
-            || EF.Functions.ILike(b.Title, pattern, LikeEscapeCharacter)
-            || b.Authors.Any(a => EF.Functions.ILike(a.FullName, pattern, LikeEscapeCharacter)));
+        var matching = db.Books
+            .Where(b => EF.Property<NpgsqlTsVector>(b, BookConfiguration.SearchVector)
+                .Matches(EF.Functions.WebSearchToTsQuery(BookStoreDbContext.TextSearchConfig, search)))
+            .Select(b => b.Id)
+            .Union(db.Books.Where(b => EF.Functions.ILike(b.Title, pattern, LikeEscapeCharacter)).Select(b => b.Id))
+            .Union(db.Authors
+                .Where(a => EF.Functions.ILike(a.FullName, pattern, LikeEscapeCharacter))
+                .SelectMany(a => a.Books.Select(b => b.Id)));
+        books = books.Where(b => matching.Contains(b.Id));
 
         if (filter.Sort is null or BookSort.Relevance)
         {
@@ -115,9 +123,15 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
         BookSort.Newest => books.OrderByDescending(b => b.CreatedAt).ThenBy(b => b.Id),
         // PostgreSQL sorts NULLs first in descending order; books without a year go last.
         BookSort.Year => books.OrderBy(b => b.Year == null).ThenByDescending(b => b.Year).ThenBy(b => b.Title).ThenBy(b => b.Id),
+        // Bayesian average: (sum + C·m) / (count + C), m = mean of all ratings. A book with one 5-star rating
+        // doesn't outrank one with hundreds of 4.5s; it is pulled toward the overall mean until more ratings
+        // arrive. Unrated books last. m is an uncorrelated subquery: PostgreSQL computes it once per query.
         BookSort.Rating => books
-            .OrderBy(b => !db.Ratings.Any(r => r.BookId == b.Id))
-            .ThenByDescending(b => db.Ratings.Where(r => r.BookId == b.Id).Average(r => (double?)r.Score))
+            .OrderBy(b => b.RatingCount == 0)
+            .ThenByDescending(b =>
+                (b.RatingSum + RatingPriorWeight
+                    * (db.Books.Sum(x => (double)x.RatingSum) / Math.Max(db.Books.Sum(x => (double)x.RatingCount), 1.0)))
+                / (b.RatingCount + RatingPriorWeight))
             .ThenBy(b => b.Title)
             .ThenBy(b => b.Id),
         _ => books.OrderBy(b => b.Title).ThenBy(b => b.Id),
@@ -149,6 +163,14 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
         await db.Books
             .Where(b => b.Id == bookId && b.Stock >= quantity)
             .ExecuteUpdateAsync(s => s.SetProperty(b => b.Stock, b => b.Stock - quantity), cancellationToken) == 1;
+
+    public Task AdjustRatingsAsync(Guid bookId, int countDelta, int sumDelta, CancellationToken cancellationToken) =>
+        db.Books
+            .Where(b => b.Id == bookId)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(b => b.RatingCount, b => b.RatingCount + countDelta)
+                    .SetProperty(b => b.RatingSum, b => b.RatingSum + sumDelta),
+                cancellationToken);
 
     public Task<bool> HasOrdersAsync(Guid id, CancellationToken cancellationToken) =>
         db.OrderItems.AnyAsync(i => i.BookId == id, cancellationToken);

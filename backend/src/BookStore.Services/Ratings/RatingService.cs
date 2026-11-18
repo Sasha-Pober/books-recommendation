@@ -35,22 +35,35 @@ internal sealed class RatingService(
         }
 
         var reviewText = string.IsNullOrWhiteSpace(request.ReviewText) ? null : request.ReviewText.Trim();
-        var rating = await ratings.GetAsync(userId, bookId, cancellationToken);
-        if (rating is null)
+        // The rating and the book's rating counters change together or not at all.
+        var rating = await unitOfWork.InTransactionAsync(async ct =>
         {
-            rating = new Rating { BookId = bookId, UserId = userId, Score = request.Score, ReviewText = reviewText };
-            ratings.Add(rating);
-        }
-        else
-        {
-            rating.Score = request.Score;
-            rating.ReviewText = reviewText;
-            rating.UpdatedAt = DateTime.UtcNow;
-        }
+            var saved = await ratings.GetAsync(userId, bookId, ct);
+            int countDelta, sumDelta;
+            if (saved is null)
+            {
+                saved = new Rating { BookId = bookId, UserId = userId, Score = request.Score, ReviewText = reviewText };
+                ratings.Add(saved);
+                (countDelta, sumDelta) = (1, request.Score);
+            }
+            else
+            {
+                (countDelta, sumDelta) = (0, request.Score - saved.Score);
+                saved.Score = request.Score;
+                saved.ReviewText = reviewText;
+                saved.UpdatedAt = DateTime.UtcNow;
+            }
 
-        interactions.AddRange(
-            [Interaction.Create(userId, currentUser.SessionId, bookId, InteractionType.Rating, request.Score)]);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            interactions.AddRange(
+                [Interaction.Create(userId, currentUser.SessionId, bookId, InteractionType.Rating, request.Score)]);
+            await unitOfWork.SaveChangesAsync(ct);
+            if (countDelta != 0 || sumDelta != 0)
+            {
+                await books.AdjustRatingsAsync(bookId, countDelta, sumDelta, ct);
+            }
+
+            return saved;
+        }, cancellationToken);
 
         var user = await identity.FindByIdAsync(userId, cancellationToken);
         return new ReviewDto(

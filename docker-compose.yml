@@ -61,7 +61,7 @@ services:
       # Development: applies migrations + seeds demo data on startup and serves the Scalar UI.
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__BookStore: >-
-        Host=postgres;Port=5432;Database=${POSTGRES_DB:-bookstore};Username=${POSTGRES_USER:-bookstore};Password=${POSTGRES_PASSWORD:-bookstore}
+        Host=postgres;Port=5432;Database=${POSTGRES_DB:-bookstore};Username=${POSTGRES_USER:-bookstore};Password=${POSTGRES_PASSWORD:-bookstore};Minimum Pool Size=4
       # Short timeouts: when Redis is down the API falls back to the database quickly.
       ConnectionStrings__Redis: redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=200,syncTimeout=200
       # The Python recommendation service; without a trained model it answers 503 and the API uses its fallback.

@@ -69,4 +69,24 @@ public class BaselineRecommendationEngineTests
         new RecommendationCollectionBuilder(_orders, _interactions, _books, TimeProvider.System),
         _books,
         NullLogger<BaselineRecommendationEngine>.Instance);
+
+    [Fact]
+    public async Task Collections_CountBackFromTheLatestActivity_NotFromNow()
+    {
+        // E.g. imported historical data: the last event is from 2017.
+        var lastOrder = new DateTime(2017, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        var lastEvent = new DateTime(2017, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        _cache.GetAsync(default, default).ReturnsForAnyArgs((IReadOnlyList<ScoredBook>?)null);
+        _orders.GetLatestOrderTimeAsync(Arg.Any<CancellationToken>()).Returns(lastOrder);
+        _interactions.GetLatestEventTimeAsync(Arg.Any<CancellationToken>()).Returns(lastEvent);
+        _orders.GetBestsellersAsync(default, default, default).ReturnsForAnyArgs([]);
+        _interactions.GetPopularBooksAsync(default, default, default!, default).ReturnsForAnyArgs([]);
+        _books.GetNewestInStockIdsAsync(default, default!, default).ReturnsForAnyArgs([]);
+
+        await CreateEngine().RecommendAsync(new HomeRecommendationRequest(null, "s", 10, []), CancellationToken.None);
+
+        await _orders.Received(1).GetBestsellersAsync(lastOrder.AddDays(-90), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _interactions.Received(1).GetPopularBooksAsync(
+            lastEvent.AddDays(-30), Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+    }
 }

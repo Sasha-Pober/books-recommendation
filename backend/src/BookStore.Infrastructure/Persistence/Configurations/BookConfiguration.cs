@@ -16,6 +16,7 @@ internal sealed class BookConfiguration : IEntityTypeConfiguration<Book>
         {
             t.HasCheckConstraint("ck_books_price", "price >= 0");
             t.HasCheckConstraint("ck_books_stock", "stock >= 0");
+            t.HasCheckConstraint("ck_books_ratings", "rating_count >= 0 AND rating_sum >= 0");
         });
 
         builder.Property(b => b.Title).HasMaxLength(300);
@@ -26,6 +27,14 @@ internal sealed class BookConfiguration : IEntityTypeConfiguration<Book>
 
         builder.HasIndex(b => b.Isbn).IsUnique();
         builder.HasIndex(b => b.Title);
+        // Substring search (ILIKE '%…%') on titles; needs the pg_trgm extension.
+        // (The database name is explicit: the snake_case convention would rename it to ix_books_title.)
+        builder.HasIndex(b => b.Title, "ix_books_title_trgm")
+            .HasDatabaseName("ix_books_title_trgm")
+            .HasMethod("gin")
+            .HasOperators("gin_trgm_ops");
+
+        builder.Ignore(b => b.AverageRating);
 
         // Full-text search: title (weight A) + annotation (weight B), maintained by PostgreSQL.
         builder.Property<NpgsqlTsVector>(SearchVector)

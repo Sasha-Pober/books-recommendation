@@ -22,6 +22,7 @@ namespace BookStore.Infrastructure.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
@@ -52,6 +53,12 @@ namespace BookStore.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FullName")
                         .HasDatabaseName("ix_authors_full_name");
+
+                    b.HasIndex(new[] { "FullName" }, "ix_authors_full_name_trgm")
+                        .HasDatabaseName("ix_authors_full_name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "FullName" }, "ix_authors_full_name_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "FullName" }, "ix_authors_full_name_trgm"), new[] { "gin_trgm_ops" });
 
                     b.ToTable("authors", (string)null);
                 });
@@ -99,6 +106,14 @@ namespace BookStore.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("publisher_id");
 
+                    b.Property<int>("RatingCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating_count");
+
+                    b.Property<int>("RatingSum")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating_sum");
+
                     b.Property<NpgsqlTsVector>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("tsvector")
@@ -144,9 +159,17 @@ namespace BookStore.Infrastructure.Persistence.Migrations
                     b.HasIndex("Title")
                         .HasDatabaseName("ix_books_title");
 
+                    b.HasIndex(new[] { "Title" }, "ix_books_title_trgm")
+                        .HasDatabaseName("ix_books_title_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Title" }, "ix_books_title_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Title" }, "ix_books_title_trgm"), new[] { "gin_trgm_ops" });
+
                     b.ToTable("books", null, t =>
                         {
                             t.HasCheckConstraint("ck_books_price", "price >= 0");
+
+                            t.HasCheckConstraint("ck_books_ratings", "rating_count >= 0 AND rating_sum >= 0");
 
                             t.HasCheckConstraint("ck_books_stock", "stock >= 0");
                         });

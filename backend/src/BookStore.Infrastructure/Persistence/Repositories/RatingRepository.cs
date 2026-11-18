@@ -14,21 +14,6 @@ internal sealed class RatingRepository(BookStoreDbContext db) : IRatingRepositor
     public async Task<IReadOnlyList<Guid>> GetRatedBookIdsAsync(Guid userId, CancellationToken cancellationToken) =>
         await db.Ratings.Where(r => r.UserId == userId).Select(r => r.BookId).ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyDictionary<Guid, RatingSummary>> GetSummariesAsync(
-        IReadOnlyCollection<Guid> bookIds, CancellationToken cancellationToken)
-    {
-        if (bookIds.Count == 0)
-        {
-            return new Dictionary<Guid, RatingSummary>();
-        }
-
-        return await db.Ratings
-            .Where(r => bookIds.Contains(r.BookId))
-            .GroupBy(r => r.BookId)
-            .Select(g => new { BookId = g.Key, Average = g.Average(r => (double)r.Score), Count = g.Count() })
-            .ToDictionaryAsync(x => x.BookId, x => new RatingSummary(x.Average, x.Count), cancellationToken);
-    }
-
     public Task<PagedList<BookReview>> GetReviewsAsync(
         Guid bookId, int page, int pageSize, CancellationToken cancellationToken) =>
         db.Ratings

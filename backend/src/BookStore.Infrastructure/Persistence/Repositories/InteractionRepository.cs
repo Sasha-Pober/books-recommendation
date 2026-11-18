@@ -35,6 +35,9 @@ internal sealed class InteractionRepository(BookStoreDbContext db) : IInteractio
 
     public void AddRange(IEnumerable<Interaction> interactions) => db.Interactions.AddRange(interactions);
 
+    public Task<DateTime?> GetLatestEventTimeAsync(CancellationToken cancellationToken) =>
+        db.Interactions.MaxAsync(i => (DateTime?)i.CreatedAt, cancellationToken);
+
     public Task<int> AssignGuestSessionAsync(string sessionId, Guid userId, CancellationToken cancellationToken) =>
         db.Interactions
             .Where(i => i.SessionId == sessionId && i.UserId == null)

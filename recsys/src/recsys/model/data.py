@@ -1,5 +1,6 @@
 """Index mappings, user histories and evaluation sets built from an exported dataset."""
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -7,6 +8,8 @@ import pandas as pd
 
 from recsys.dataset.features import BookFeatures, encode_books
 from recsys.dataset.pipeline import ExportedData, Split, build_pairs, time_split
+
+logger = logging.getLogger(__name__)
 
 PAD = -1  # history padding (no item)
 
@@ -83,11 +86,26 @@ def build_training_data(
     history_length: int = 50,
     half_life_days: float = 180.0,
 ) -> TrainingData:
-    features = encode_books(export.books, export.book_authors, export.book_genres)
-    book_index = {book_id: i for i, book_id in enumerate(features.book_ids)}
-
     pairs = build_pairs(export.interactions)
-    pairs = pairs[pairs["book_id"].astype(str).isin(book_index)]
+    catalog_ids = set(export.books["id"].astype(str))
+    pairs = pairs[pairs["book_id"].astype(str).isin(catalog_ids)]
+
+    # The training catalog: only books with at least one positive interaction (in any period). A book nobody
+    # ever liked could only appear as a random negative, so the model would learn that its features mean
+    # "disliked": e.g. the store's few Ukrainian books (no readers yet) would turn the shared `uk` language
+    # vector negative for every Ukrainian book. Left out, such features stay unknown (a zero vector), and the
+    # books are scored at inference like books added after training: by their text, genres and authors.
+    liked = set(pairs["book_id"].astype(str))
+    books = export.books[export.books["id"].astype(str).isin(liked)]
+    book_authors = export.book_authors[export.book_authors["book_id"].astype(str).isin(liked)]
+    book_genres = export.book_genres[export.book_genres["book_id"].astype(str).isin(liked)]
+    if len(books) < len(export.books):
+        logger.info(
+            "Training catalog: %d books with interactions; %d without are left out (handled as new books)",
+            len(books), len(export.books) - len(books),
+        )  # fmt: skip
+    features = encode_books(books, book_authors, book_genres)
+    book_index = {book_id: i for i, book_id in enumerate(features.book_ids)}
     split = time_split(pairs, val_fraction, test_fraction)
 
     user_ids = sorted(split.train["user_id"].astype(str).unique())

@@ -12,7 +12,7 @@ from recsys.model.evaluate import evaluate, new_metrics
 from recsys.model.metrics import RankingMetrics
 from recsys.model.text import embed_texts
 from recsys.model.train import TrainConfig, build_model
-from tests.synthetic import fake_encoder, user_number
+from tests.synthetic import fake_encoder, user_number, write_export
 
 
 def test_ranking_metrics_by_hand() -> None:
@@ -164,3 +164,27 @@ def test_bundle_round_trip_gives_the_same_scores(trained) -> None:
 
     assert original == again
     assert bundle.book_ids == data.features.book_ids
+
+
+def test_books_without_interactions_are_left_out_of_training(tmp_path) -> None:
+    """A Ukrainian book nobody has read yet: training leaves it (and its language, author, genre) out, so
+    the model doesn't learn them as "disliked"; at inference it is a new book with the unknown language."""
+    export = write_export(tmp_path / "export")
+    books = pd.read_parquet(export / "books.parquet")
+    extra = books.iloc[[0]].assign(
+        id="00000000-0000-4000-8000-000000000999", title="Лісова пісня", language="uk"
+    )
+    pd.concat([books, extra]).to_parquet(export / "books.parquet")
+    for name, column, value in (("book_authors", "author_id", "lesya"), ("book_genres", "genre_id", "drama")):
+        links = pd.read_parquet(export / f"{name}.parquet")
+        pd.concat([links, pd.DataFrame({"book_id": [extra["id"].item()], column: [value]})]).to_parquet(
+            export / f"{name}.parquet"
+        )
+
+    data = build_training_data(load_export(export))
+
+    assert extra["id"].item() not in data.features.book_ids
+    assert "uk" not in data.features.language_vocab.keys
+    assert "lesya" not in data.features.author_vocab.keys
+    assert "drama" not in data.features.genre_vocab.keys
+    assert data.features.language_vocab.index("uk") == 0  # → the zero "unknown" vector at inference

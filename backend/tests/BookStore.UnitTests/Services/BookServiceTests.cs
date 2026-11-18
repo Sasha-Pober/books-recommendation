@@ -1,7 +1,6 @@
 using BookStore.Domain.Common;
 using BookStore.Domain.Entities;
 using BookStore.Domain.Exceptions;
-using BookStore.Domain.Recommendations;
 using BookStore.Domain.Repositories;
 using BookStore.Presentation.Books;
 using BookStore.Services.Books;
@@ -14,7 +13,6 @@ public class BookServiceTests
     private readonly IBookRepository _books = Substitute.For<IBookRepository>();
     private readonly IAuthorRepository _authors = Substitute.For<IAuthorRepository>();
     private readonly IGenreRepository _genres = Substitute.For<IGenreRepository>();
-    private readonly IRatingRepository _ratings = Substitute.For<IRatingRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     private BookService CreateService() => new(
@@ -23,7 +21,6 @@ public class BookServiceTests
         _genres,
         Substitute.For<IPublisherRepository>(),
         Substitute.For<ISeriesRepository>(),
-        _ratings,
         _unitOfWork);
 
     [Fact]
@@ -45,7 +42,6 @@ public class BookServiceTests
         var fantasy = new Genre { Name = "Фентезі", ParentId = fantastic.Id };
         _genres.GetAllAsync(default).ReturnsForAnyArgs([fantastic, fantasy]);
         _books.SearchAsync(default!, default).ReturnsForAnyArgs(new PagedList<Book>([], 1, 20, 0));
-        _ratings.GetSummariesAsync(default!, default).ReturnsForAnyArgs(new Dictionary<Guid, RatingSummary>());
 
         await CreateService().SearchAsync(
             new BookQuery { GenreId = fantastic.Id, Search = "  дюна ", Language = " UK " }, CancellationToken.None);
@@ -62,7 +58,6 @@ public class BookServiceTests
     public async Task Search_WithBlankSearch_SendsNoSearch()
     {
         _books.SearchAsync(default!, default).ReturnsForAnyArgs(new PagedList<Book>([], 1, 20, 0));
-        _ratings.GetSummariesAsync(default!, default).ReturnsForAnyArgs(new Dictionary<Guid, RatingSummary>());
 
         await CreateService().SearchAsync(new BookQuery { Search = "   " }, CancellationToken.None);
 

@@ -132,6 +132,14 @@ def write_import(connection: psycopg.Connection, data: ImportData) -> None:
                ON CONFLICT (user_id, book_id) DO UPDATE
                    SET score = excluded.score, updated_at = excluded.updated_at"""
         )
+        # The books' denormalized rating counters (the store API keeps them current on every rating; a bulk
+        # import recomputes them from the ratings table for the books it touched).
+        cur.execute(
+            """UPDATE books b SET rating_count = r.count, rating_sum = r.sum
+               FROM (SELECT book_id, count(*) AS count, sum(score) AS sum FROM ratings
+                     WHERE book_id IN (SELECT DISTINCT book_id FROM import_ratings) GROUP BY book_id) r
+               WHERE b.id = r.book_id"""
+        )
 
 
 def _upsert(

@@ -32,6 +32,17 @@ public class Book : Entity
 
     public int Stock { get; set; }
 
+    /// <summary>
+    /// Number and sum of the book's ratings, denormalized from <see cref="Rating"/> so the catalog can show and
+    /// sort by rating without aggregating all ratings. Changed only through
+    /// <see cref="Repositories.IBookRepository.AdjustRatingsAsync"/> (and recomputed by bulk imports).
+    /// </summary>
+    public int RatingCount { get; set; }
+
+    public int RatingSum { get; set; }
+
+    public double? AverageRating => RatingCount > 0 ? (double)RatingSum / RatingCount : null;
+
     public ICollection<Author> Authors { get; set; } = [];
 
     public ICollection<Genre> Genres { get; set; } = [];

@@ -12,5 +12,10 @@ internal sealed class AuthorConfiguration : IEntityTypeConfiguration<Author>
         builder.Property(a => a.Bio).HasMaxLength(4000);
 
         builder.HasIndex(a => a.FullName);
+        // Search by part of an author's name (ILIKE '%…%').
+        builder.HasIndex(a => a.FullName, "ix_authors_full_name_trgm")
+            .HasDatabaseName("ix_authors_full_name_trgm")
+            .HasMethod("gin")
+            .HasOperators("gin_trgm_ops");
     }
 }

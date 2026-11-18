@@ -95,11 +95,35 @@ public class CatalogSearchTests(PostgresFixture fixture) : PostgresTest(fixture)
         db.Ratings.AddRange(
             new Rating { UserId = user.Id, BookId = a.Id, Score = 3 },
             new Rating { UserId = user.Id, BookId = c.Id, Score = 5 });
+        (a.RatingCount, a.RatingSum, c.RatingCount, c.RatingSum) = (1, 3, 1, 5); // as RatingService keeps them
         await db.SaveChangesAsync();
 
         var result = await new BookRepository(db).SearchAsync(Filter(sort: sort), CancellationToken.None);
 
         Assert.Equal(expected, result.Items.Select(i => i.Title));
+    }
+
+    [Fact]
+    public async Task RatingSort_IsBayesian_ManyGoodRatingsBeatOneExcellentRating()
+    {
+        await using var db = Fixture.CreateDbContext();
+        var author = new Author { FullName = "Автор" };
+        var oneFive = TestData.Book("One five-star rating", author);
+        var manyGood = TestData.Book("Two hundred 4.5-star ratings", author);
+        var fewPoor = TestData.Book("Ten 2-star ratings", author);
+        (oneFive.RatingCount, oneFive.RatingSum) = (1, 5);
+        (manyGood.RatingCount, manyGood.RatingSum) = (200, 900);
+        (fewPoor.RatingCount, fewPoor.RatingSum) = (10, 20);
+        db.Books.AddRange(oneFive, manyGood, fewPoor, TestData.Book("Unrated", author));
+        await db.SaveChangesAsync();
+
+        var result = await new BookRepository(db).SearchAsync(Filter(sort: BookSort.Rating), CancellationToken.None);
+
+        // C = 10, overall mean m = 925 / 211 ≈ 4.38; (sum + C·m) / (count + C):
+        // 200 × 4.5 → (900 + 43.8) / 210 ≈ 4.49;  one 5 → (5 + 43.8) / 11 ≈ 4.44;  10 × 2 → (20 + 43.8) / 20 ≈ 3.19.
+        Assert.Equal(
+            ["Two hundred 4.5-star ratings", "One five-star rating", "Ten 2-star ratings", "Unrated"],
+            result.Items.Select(i => i.Title));
     }
 
     private async Task<IReadOnlyList<string>> SearchTitlesAsync(string search)

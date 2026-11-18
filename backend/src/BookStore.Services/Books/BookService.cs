@@ -27,7 +27,6 @@ internal sealed class BookService(
     IGenreRepository genres,
     IPublisherRepository publishers,
     ISeriesRepository series,
-    IRatingRepository ratings,
     IUnitOfWork unitOfWork) : IBookService
 {
     public async Task<PagedResult<BookDto>> SearchAsync(BookQuery query, CancellationToken cancellationToken)
@@ -54,10 +53,9 @@ internal sealed class BookService(
             Page: query.Page,
             PageSize: query.PageSize);
         var page = await books.SearchAsync(filter, cancellationToken);
-        var summaries = await ratings.GetSummariesAsync(page.Items.Select(b => b.Id).ToList(), cancellationToken);
 
         return new PagedResult<BookDto>(
-            page.Items.Select(b => b.ToDto(summaries.For(b.Id))).ToList(),
+            page.Items.Select(b => b.ToDto()).ToList(),
             page.Page,
             page.PageSize,
             page.TotalCount);
@@ -67,9 +65,7 @@ internal sealed class BookService(
     {
         var book = await books.GetByIdAsync(id, cancellationToken)
                    ?? throw new NotFoundException(nameof(Book), id);
-        var summaries = await ratings.GetSummariesAsync([id], cancellationToken);
-
-        return book.ToDto(summaries.For(id));
+        return book.ToDto();
     }
 
     public async Task<BookDto> CreateAsync(UpsertBookRequest request, CancellationToken cancellationToken)
