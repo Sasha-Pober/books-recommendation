@@ -5,7 +5,7 @@ A book store with a neural-network-based recommendation system.
 | Part | Tech | Status |
 |---|---|---|
 | `backend/` | C# / ASP.NET Core 10, EF Core, PostgreSQL, Redis | ✅ store API, unit + integration tests |
-| `frontend/` | TypeScript / Angular | planned |
+| `frontend/` | TypeScript / Angular 22 / Angular Material | 🚧 skeleton: layout, routing, API types, Docker |
 | `recsys/` | Python / FastAPI / Keras 3 (PyTorch backend) recommendation service | ✅ data import, training, model import, inference; awaiting the first trained model |
 
 ## Backend architecture
@@ -196,6 +196,34 @@ POST /v1/models/{model_version_id}/activate
 - **`model_version_id`:** must exist in `model_versions`, otherwise the impressions aren't logged.
 - **Errors:** any non-2xx status or a slow response triggers the fallback.
 
+## Frontend (`frontend/`)
+
+An Angular 22 SPA: standalone components, signals, zoneless change detection, Angular Material (Material 3) and Vitest. The interface is in Ukrainian, and dates and prices use the `uk` locale (₴).
+
+- **Same origin as the API:**
+  - in development, `ng serve` proxies `/api` to `http://localhost:5292` (`proxy.conf.json`);
+  - in Docker, nginx serves the app and proxies `/api` to the API container (`nginx.conf`);
+  - so there's no CORS, and the guest-session cookie needs no cross-site settings.
+  - The browser never reaches the recommendation service.
+- **API types:** generated from the API's OpenAPI document. `openapi.json` is committed, and `src/app/api/schema.ts` is generated from it; short aliases are in `src/app/api/models.ts`. After changing API contracts, with the API running in Development:
+
+  ```bash
+  npm run api:fetch    # saves openapi.json from http://localhost:5292/openapi/v1.json
+  npm run api:types    # regenerates src/app/api/schema.ts
+  ```
+- **Behind nginx:** the API reads the client address from `X-Forwarded-For`, trusted only from `ReverseProxy:TrustedNetworks`, so the per-IP rate limits apply per user and not to nginx.
+
+**Running locally.** Node is managed with [fnm](https://github.com/Schniz/fnm); the version is in `.node-version`.
+
+```bash
+cd frontend
+fnm use              # Node from .node-version (fnm install, the first time)
+npm ci
+npm start            # http://localhost:4200, with the API running on :5292
+npm test             # Vitest
+npm run format:check
+```
+
 ## Recommendation service (`recsys/`)
 
 A Python 3.12 FastAPI service, managed with [uv](https://docs.astral.sh/uv/). Only the API calls it, over the internal Docker network: the port isn't published, and every `/v1` request needs the `X-Service-Key` header.
@@ -351,7 +379,7 @@ Requirements: Docker. The .NET 10 SDK is needed only to run the API outside Dock
 ### Everything in Docker
 
 ```bash
-docker compose up -d --build   # PostgreSQL + Redis + recommendation service + API
+docker compose up -d --build   # PostgreSQL + Redis + recommendation service + API + frontend (http://localhost:4200)
 ```
 
 The API container runs in `Development` mode. On startup it applies migrations and seeds roles, demo accounts and a demo Ukrainian catalog. Database credentials come from `.env` (copy `.env.example`), or default to `bookstore`.

@@ -1,0 +1,25 @@
+<mat-toolbar class="toolbar">
+  <a class="brand" routerLink="/">
+    <mat-icon aria-hidden="true">menu_book</mat-icon>
+    <span>Книгарня</span>
+  </a>
+
+  <form class="search" role="search" (ngSubmit)="search(term.value)">
+    <mat-icon aria-hidden="true">search</mat-icon>
+    <input
+      #term
+      type="search"
+      name="search"
+      placeholder="Назва, автор або тема"
+      aria-label="Пошук книжок"
+    />
+  </form>
+
+  <nav class="links" aria-label="Основна навігація">
+    <a mat-button routerLink="/catalog" routerLinkActive="active">Каталог</a>
+  </nav>
+</mat-toolbar>
+
+<main class="page">
+  <router-outlet />
+</main>

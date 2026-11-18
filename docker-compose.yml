@@ -1,4 +1,5 @@
-# Local development environment. The frontend will be added here when it is implemented.
+# Local environment: the store (frontend + API), its data stores and the recommendation service.
+# Open http://localhost:4200.
 services:
   postgres:
     # pgvector + Ukrainian full-text search dictionary, see infra/postgres/Dockerfile
@@ -63,6 +64,8 @@ services:
       ConnectionStrings__BookStore: >-
         Host=postgres;Port=5432;Database=${POSTGRES_DB:-bookstore};Username=${POSTGRES_USER:-bookstore};Password=${POSTGRES_PASSWORD:-bookstore};Minimum Pool Size=4
       # Short timeouts: when Redis is down the API falls back to the database quickly.
+      # Requests come through the frontend's nginx: trust its X-Forwarded-For (Docker's private networks).
+      ReverseProxy__TrustedNetworks__0: 172.16.0.0/12
       ConnectionStrings__Redis: redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=200,syncTimeout=200
       # The Python recommendation service; without a trained model it answers 503 and the API uses its fallback.
       RecommendationService__BaseUrl: http://recsys:8000/
@@ -74,6 +77,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: bookstore-frontend
+    # nginx: the Angular app, and /api proxied to the API (same origin for the browser).
+    ports:
+      - "4200:80"
+    depends_on:
+      - api
 
 volumes:
   postgres-data:

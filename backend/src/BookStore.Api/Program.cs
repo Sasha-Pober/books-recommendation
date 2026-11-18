@@ -1,9 +1,11 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using BookStore.Api.Auth;
 using BookStore.Api.Infrastructure;
 using BookStore.Infrastructure;
 using BookStore.Infrastructure.Persistence;
 using BookStore.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Scalar.AspNetCore;
 
 const string FrontendCorsPolicy = "Frontend";
@@ -16,8 +18,8 @@ builder.Services
 
 builder.Services
     .AddControllers()
-    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    .AddJsonOptions(o => ConfigureJson(o.JsonSerializerOptions));
+builder.Services.ConfigureHttpJsonOptions(o => ConfigureJson(o.SerializerOptions));
 
 builder.Services.AddJwtAuthentication();
 builder.Services.AddRateLimiter(RateLimits.Add);
@@ -34,7 +36,21 @@ builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicy, policy
     // The guest session cookie must be sent with cross-origin requests from the SPA.
     .AllowCredentials()));
 
+// Behind the frontend's nginx, the client's address comes in X-Forwarded-For. It is trusted only from the
+// configured proxy networks (ReverseProxy:TrustedNetworks), so a client can't fake its address to escape
+// the per-IP rate limits. Loopback proxies (e.g. the Angular dev server) are trusted by default.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    foreach (var network in builder.Configuration.GetSection("ReverseProxy:TrustedNetworks").Get<string[]>() ?? [])
+    {
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+    }
+});
+
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
@@ -59,6 +75,14 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 app.Run();
+
+// Enums as strings. Numbers strictly as JSON numbers: the web default also accepts them as strings, which the
+// OpenAPI document then describes as "integer or string" (and the frontend's generated types as number | string).
+static void ConfigureJson(JsonSerializerOptions options)
+{
+    options.Converters.Add(new JsonStringEnumConverter());
+    options.NumberHandling = JsonNumberHandling.Strict;
+}
 
 // Exposed for integration tests (WebApplicationFactory).
 public partial class Program;
