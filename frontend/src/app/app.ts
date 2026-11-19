@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,6 +11,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 
 import { AuthService } from './core/auth/auth.service';
+import { CartStore } from './shop/cart.store';
 
 /** The page frame: toolbar with catalog search, navigation and the account menu, then the routed page. */
 @Component({
@@ -17,6 +19,7 @@ import { AuthService } from './core/auth/auth.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FormsModule,
+    MatBadgeModule,
     MatButtonModule,
     MatDividerModule,
     MatIconModule,
@@ -32,6 +35,7 @@ import { AuthService } from './core/auth/auth.service';
 export class App {
   private readonly router = inject(Router);
   protected readonly auth = inject(AuthService);
+  protected readonly cart = inject(CartStore);
 
   /** The search box shows the catalog's current search (e.g. after Back, or on a shared link). */
   protected readonly searchTerm = toSignal(

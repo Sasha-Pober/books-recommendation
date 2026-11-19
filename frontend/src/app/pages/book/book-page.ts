@@ -14,7 +14,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Title } from '@angular/platform-browser';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import type { BookDto, RecommendationList } from '../../api/models';
 import { languageName } from '../../catalog/catalog-reference';
@@ -23,6 +23,8 @@ import { SILENT_ERRORS } from '../../core/http/error.interceptor';
 import { BookCover } from '../../shared/book-cover/book-cover';
 import { Rating } from '../../shared/rating/rating';
 import { RecommendationRow } from '../../shared/recommendation-row/recommendation-row';
+import { BuyButtons } from '../../shop/buy-buttons';
+import { BookReviews } from './book-reviews';
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Annotations longer than this start collapsed. */
@@ -34,6 +36,8 @@ const LONG_ANNOTATION = 600;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     BookCover,
+    BookReviews,
+    BuyButtons,
     CurrencyPipe,
     MatButtonModule,
     MatChipsModule,
@@ -49,6 +53,7 @@ const LONG_ANNOTATION = 600;
 export class BookPage {
   private readonly events = inject(InteractionEvents);
   private readonly title = inject(Title);
+  protected readonly router = inject(Router);
 
   /** The :id route parameter. */
   readonly id = input.required<string>();

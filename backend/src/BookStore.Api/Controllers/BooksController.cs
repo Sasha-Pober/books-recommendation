@@ -34,11 +34,19 @@ public sealed class BooksController(
         Guid id, [FromQuery] RecommendationQuery query, CancellationToken cancellationToken) =>
         recommendations.GetSimilarAsync(id, query.Count, cancellationToken);
 
-    /// <summary>Ratings and reviews of the book, newest first.</summary>
+    /// <summary>Ratings and reviews of the book, newest first (<c>withTextOnly</c>: written reviews only).</summary>
     [HttpGet("{id:guid}/ratings")]
     public Task<PagedResult<ReviewDto>> GetRatings(
-        Guid id, [FromQuery] PageQuery page, CancellationToken cancellationToken) =>
-        ratings.GetReviewsAsync(id, page, cancellationToken);
+        Guid id, [FromQuery] ReviewQuery query, CancellationToken cancellationToken) =>
+        ratings.GetReviewsAsync(id, query, cancellationToken);
+
+    /// <summary>The current customer's rating of the book; 204 if they haven't rated it.</summary>
+    [HttpGet("{id:guid}/ratings/mine")]
+    [Authorize(Policy = AuthPolicies.Customer)]
+    [ProducesResponseType<ReviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> GetMyRating(Guid id, CancellationToken cancellationToken) =>
+        await ratings.GetMineAsync(id, cancellationToken) is { } review ? Ok(review) : NoContent();
 
     /// <summary>Creates or replaces the current user's rating (1–5) and optional review.</summary>
     [HttpPost("{id:guid}/ratings")]

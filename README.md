@@ -5,7 +5,7 @@ A book store with a neural-network-based recommendation system.
 | Part | Tech | Status |
 |---|---|---|
 | `backend/` | C# / ASP.NET Core 10, EF Core, PostgreSQL, Redis | ✅ store API, unit + integration tests |
-| `frontend/` | TypeScript / Angular 22 / Angular Material | 🚧 skeleton: layout, routing, API types, Docker |
+| `frontend/` | TypeScript / Angular 22 / Angular Material | ✅ store: sign-in, catalog, book page, recommendations, cart, orders, ratings; 🚧 admin |
 | `recsys/` | Python / FastAPI / Keras 3 (PyTorch backend) recommendation service | ✅ data import, training, model import, inference; awaiting the first trained model |
 
 ## Backend architecture
@@ -238,6 +238,15 @@ An Angular 22 SPA: standalone components, signals, zoneless change detection, An
 - **Details:** cover, rating, price and availability, publisher, series, language, year, pages, ISBN and annotation. Authors, genres, publisher and series link into the catalog filters.
 - **«Схожі книги»:** a row of recommendations, each with its explanation. If this optional block fails it's simply left out, without the global error message (`SILENT_ERRORS`). `RecommendationRow` is shared with the home page.
 - **Views:** opening a book records one `View` event (`InteractionEvents`, sent with `keepalive`, errors ignored). A recommendation card passes its `logId` in the navigation state, so the view also marks that impression clicked in `recommendation_logs`, which is the CTR measure for the A/B comparison.
+
+**Shopping** (`src/app/shop`, customers only; guests who try are sent to sign in and brought back):
+- **`CartStore` and `WishlistStore`:** signals loaded once per signed-in customer and cleared on sign-out. Every change returns the whole cart or wishlist from the API, which replaces the local copy, so the server stays the source of truth. The toolbar shows the cart badge and a wishlist link. Managers and admins have no cart.
+- **Book page:** «Додати в кошик» (or «У кошику · N шт.») and the wishlist heart (`BuyButtons`).
+- **`/cart`:** quantity steppers, limited to the stock and to 99 per book. A line short of stock is flagged and blocks checkout. «Оформити замовлення» (`POST /api/orders`) opens the new order with a thank-you note; a 409 (stock ran out meanwhile) refreshes the cart.
+- **`/wishlist`:** move a book to the cart or remove it.
+- **`/orders` and `/orders/:id`:** order history with statuses, and each order at the prices paid.
+- **Ratings and reviews** (`BookReviews` on the book page): customers rate 1–5 stars with an optional review. `GET /api/books/{id}/ratings/mine` fills in their earlier rating so they can change it, and saving reloads the book's average. The list shows only written reviews (`GET /api/books/{id}/ratings?withTextOnly=true`), 5 at a time: the imported Goodreads ratings are scores only.
+- **Events:** the server records the cart, wishlist, purchase and rating events itself, so the frontend reports only views.
 
 **Running locally.** Node is managed with [fnm](https://github.com/Schniz/fnm); the version is in `.node-version`.
 

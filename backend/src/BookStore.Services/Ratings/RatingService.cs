@@ -14,7 +14,10 @@ public interface IRatingService
     /// <summary>Creates or replaces the current user's rating of the book and records a rating event.</summary>
     Task<ReviewDto> RateAsync(Guid bookId, RateBookRequest request, CancellationToken cancellationToken);
 
-    Task<PagedResult<ReviewDto>> GetReviewsAsync(Guid bookId, PageQuery page, CancellationToken cancellationToken);
+    Task<PagedResult<ReviewDto>> GetReviewsAsync(Guid bookId, ReviewQuery query, CancellationToken cancellationToken);
+
+    /// <summary>The current user's rating of the book, or null if they haven't rated it.</summary>
+    Task<ReviewDto?> GetMineAsync(Guid bookId, CancellationToken cancellationToken);
 }
 
 internal sealed class RatingService(
@@ -71,18 +74,32 @@ internal sealed class RatingService(
     }
 
     public async Task<PagedResult<ReviewDto>> GetReviewsAsync(
-        Guid bookId, PageQuery page, CancellationToken cancellationToken)
+        Guid bookId, ReviewQuery query, CancellationToken cancellationToken)
     {
         if (!await books.ExistsAsync(bookId, cancellationToken))
         {
             throw new NotFoundException(nameof(Book), bookId);
         }
 
-        var result = await ratings.GetReviewsAsync(bookId, page.Page, page.PageSize, cancellationToken);
+        var result = await ratings.GetReviewsAsync(
+            bookId, query.Page, query.PageSize, query.WithTextOnly, cancellationToken);
         return new PagedResult<ReviewDto>(
             result.Items.Select(r => new ReviewDto(r.ReviewerName, r.Score, r.ReviewText, r.CreatedAt, r.UpdatedAt)).ToList(),
             result.Page,
             result.PageSize,
             result.TotalCount);
+    }
+
+    public async Task<ReviewDto?> GetMineAsync(Guid bookId, CancellationToken cancellationToken)
+    {
+        var userId = await currentUser.RequireUserIdAsync(users, cancellationToken);
+        var rating = await ratings.GetAsync(userId, bookId, cancellationToken);
+        if (rating is null)
+        {
+            return null;
+        }
+
+        var user = await identity.FindByIdAsync(userId, cancellationToken);
+        return new ReviewDto(user?.FullName ?? "", rating.Score, rating.ReviewText, rating.CreatedAt, rating.UpdatedAt);
     }
 }

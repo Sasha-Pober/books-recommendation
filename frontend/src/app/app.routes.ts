@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
-import { authGuard, guestOnlyGuard } from './core/auth/auth.guards';
+import { authGuard, guestOnlyGuard, roleGuard } from './core/auth/auth.guards';
+import { Role } from './core/auth/roles';
 
 export const routes: Routes = [
   {
@@ -35,6 +36,30 @@ export const routes: Routes = [
     title: 'Мій акаунт — Книгарня',
     canActivate: [authGuard],
     loadComponent: () => import('./pages/account/account-page').then((m) => m.AccountPage),
+  },
+  {
+    path: 'cart',
+    title: 'Кошик — Книгарня',
+    canActivate: [roleGuard(Role.Customer)],
+    loadComponent: () => import('./pages/cart/cart-page').then((m) => m.CartPage),
+  },
+  {
+    path: 'wishlist',
+    title: 'Список бажань — Книгарня',
+    canActivate: [roleGuard(Role.Customer)],
+    loadComponent: () => import('./pages/wishlist/wishlist-page').then((m) => m.WishlistPage),
+  },
+  {
+    path: 'orders',
+    title: 'Мої замовлення — Книгарня',
+    canActivate: [roleGuard(Role.Customer)],
+    loadComponent: () => import('./pages/orders/orders-page').then((m) => m.OrdersPage),
+  },
+  {
+    path: 'orders/:id',
+    title: 'Замовлення — Книгарня',
+    canActivate: [roleGuard(Role.Customer)],
+    loadComponent: () => import('./pages/orders/order-page').then((m) => m.OrderPage),
   },
   {
     path: '**',

@@ -20,6 +20,26 @@
 
     @if (auth.isReady()) {
       @if (auth.user(); as user) {
+        @if (cart.available()) {
+          <a
+            mat-icon-button
+            routerLink="/wishlist"
+            routerLinkActive="active"
+            aria-label="Список бажань"
+          >
+            <mat-icon>favorite</mat-icon>
+          </a>
+          <a
+            mat-icon-button
+            routerLink="/cart"
+            routerLinkActive="active"
+            [attr.aria-label]="'Кошик, книг: ' + cart.count()"
+          >
+            <mat-icon [matBadge]="cart.count() || null" matBadgeSize="small" aria-hidden="true"
+              >shopping_cart</mat-icon
+            >
+          </a>
+        }
         <button
           mat-button
           class="account"
@@ -36,6 +56,16 @@
             <mat-icon>person</mat-icon>
             <span>Мій акаунт</span>
           </a>
+          @if (cart.available()) {
+            <a mat-menu-item routerLink="/orders">
+              <mat-icon>receipt_long</mat-icon>
+              <span>Мої замовлення</span>
+            </a>
+            <a mat-menu-item routerLink="/wishlist">
+              <mat-icon>favorite</mat-icon>
+              <span>Список бажань</span>
+            </a>
+          }
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
             <span>Вийти</span>

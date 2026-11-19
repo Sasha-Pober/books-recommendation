@@ -1,4 +1,4 @@
-import type { BookDto, RecommendedBook } from '../app/api/models';
+import type { BookDto, BookSummaryDto, CartDto, RecommendedBook } from '../app/api/models';
 
 export const AUTHOR_ID = 'a0000000-0000-4000-8000-000000000001';
 
@@ -35,4 +35,29 @@ export function recommended(
   logId: number | null = 100 + n,
 ): RecommendedBook {
   return { book: book(n), score: 1, reason: 'SameAuthor', explanation, logId };
+}
+
+export function summary(n: number, overrides: Partial<BookSummaryDto> = {}): BookSummaryDto {
+  return {
+    id: bookId(n),
+    title: `Книга ${n}`,
+    authors: ['Ліна Костенко'],
+    coverImageUrl: null,
+    price: 250,
+    stock: 5,
+    ...overrides,
+  };
+}
+
+export function cart(...items: { n: number; quantity: number; stock?: number }[]): CartDto {
+  const lines = items.map(({ n, quantity, stock }) => ({
+    book: summary(n, stock === undefined ? {} : { stock }),
+    quantity,
+    lineTotal: 250 * quantity,
+  }));
+  return {
+    items: lines,
+    totalQuantity: lines.reduce((s, l) => s + l.quantity, 0),
+    total: lines.reduce((s, l) => s + l.lineTotal, 0),
+  };
 }

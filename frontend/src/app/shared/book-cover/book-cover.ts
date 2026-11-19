@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input, linkedSignal } from '@angular/core';
 
-import type { BookDto } from '../../api/models';
+export interface CoverBook {
+  id: string;
+  title: string;
+  coverImageUrl: string | null;
+  authors: readonly (string | { fullName: string })[];
+}
 
 /** Cover backgrounds for books without an image: muted, with white text readable on all of them. */
 const PALETTE = [
@@ -97,12 +102,16 @@ const PALETTE = [
   `,
 })
 export class BookCover {
-  readonly book = input.required<Pick<BookDto, 'id' | 'title' | 'coverImageUrl' | 'authors'>>();
+  /** A full book or a summary (whose authors are plain names). */
+  readonly book = input.required<CoverBook>();
 
   /** Reset whenever the book changes, so one broken image doesn't hide the next book's cover. */
   protected readonly failed = linkedSignal({ source: this.book, computation: () => false });
   protected readonly showImage = computed(() => !!this.book().coverImageUrl && !this.failed());
-  protected readonly author = computed(() => this.book().authors[0]?.fullName);
+  protected readonly author = computed(() => {
+    const first = this.book().authors[0];
+    return typeof first === 'string' ? first : first?.fullName;
+  });
   protected readonly color = computed(() => PALETTE[hash(this.book().id) % PALETTE.length]);
 }
 

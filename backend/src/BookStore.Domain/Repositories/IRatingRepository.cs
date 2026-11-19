@@ -12,7 +12,8 @@ public interface IRatingRepository
     Task<IReadOnlyList<Guid>> GetRatedBookIdsAsync(Guid userId, CancellationToken cancellationToken);
 
     /// <summary>Ratings of the book, newest first, with the reviewer's name.</summary>
-    Task<PagedList<BookReview>> GetReviewsAsync(Guid bookId, int page, int pageSize, CancellationToken cancellationToken);
+    Task<PagedList<BookReview>> GetReviewsAsync(
+        Guid bookId, int page, int pageSize, bool withTextOnly, CancellationToken cancellationToken);
 
     void Add(Rating rating);
 }

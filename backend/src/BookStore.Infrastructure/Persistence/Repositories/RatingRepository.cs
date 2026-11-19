@@ -15,9 +15,10 @@ internal sealed class RatingRepository(BookStoreDbContext db) : IRatingRepositor
         await db.Ratings.Where(r => r.UserId == userId).Select(r => r.BookId).ToListAsync(cancellationToken);
 
     public Task<PagedList<BookReview>> GetReviewsAsync(
-        Guid bookId, int page, int pageSize, CancellationToken cancellationToken) =>
+        Guid bookId, int page, int pageSize, bool withTextOnly, CancellationToken cancellationToken) =>
         db.Ratings
             .Where(r => r.BookId == bookId)
+            .Where(r => !withTextOnly || (r.ReviewText != null && r.ReviewText != ""))
             .Join(db.Users, r => r.UserId, u => u.Id, (r, u) => new { Rating = r, u.FullName })
             .OrderByDescending(x => x.Rating.UpdatedAt)
             .ThenBy(x => x.Rating.UserId)

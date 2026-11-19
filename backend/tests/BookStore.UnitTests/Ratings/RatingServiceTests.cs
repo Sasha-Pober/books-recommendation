@@ -59,6 +59,19 @@ public class RatingServiceTests : ShoppingTestBase
             CreateService().RateAsync(_bookId, new RateBookRequest { Score = 5 }, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task GetMine_ReturnsTheUsersRating_OrNull()
+    {
+        var service = CreateService();
+        Assert.Null(await service.GetMineAsync(_bookId, CancellationToken.None));
+
+        _ratings.GetAsync(UserId, _bookId, Arg.Any<CancellationToken>())
+            .Returns(new Rating { UserId = UserId, BookId = _bookId, Score = 4, ReviewText = "Добре" });
+        var mine = await service.GetMineAsync(_bookId, CancellationToken.None);
+
+        Assert.Equal((4, "Добре"), (mine!.Score, mine.ReviewText));
+    }
+
     private RatingService CreateService() =>
         new(_ratings, Books, Users, Interactions, _identity, CurrentUser, UnitOfWork);
 

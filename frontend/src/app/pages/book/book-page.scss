@@ -104,7 +104,13 @@ a:not([mat-chip]):not([mat-button]):not([mat-flat-button]) {
   }
 }
 
+.buttons {
+  margin-left: auto;
+}
+
+.reviews,
 .similar {
+  display: block;
   margin-top: 48px;
 }
 

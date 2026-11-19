@@ -41,6 +41,7 @@
             ><mat-icon aria-hidden="true">block</mat-icon> Немає в наявності</span
           >
         }
+        <app-buy-buttons class="buttons" [book]="b" />
       </div>
 
       <dl class="facts">
@@ -104,6 +105,13 @@
       }
     </div>
   </article>
+
+  <app-book-reviews
+    class="reviews"
+    [bookId]="b.id"
+    [returnUrl]="router.url"
+    (rated)="book.reload()"
+  />
 
   @if (similar.isLoading() || similarItems().length) {
     <app-recommendation-row

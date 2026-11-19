@@ -1,0 +1,95 @@
+<h1>Кошик</h1>
+
+<div class="progress">
+  @if (busy()) {
+    <mat-progress-bar mode="indeterminate" aria-label="Оновлення кошика" />
+  }
+</div>
+
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+@if (store.cart(); as cart) {
+  @if (cart.items.length) {
+    <div class="layout">
+      <ul class="items">
+        @for (item of cart.items; track item.book.id) {
+          <li>
+            <app-book-line [book]="item.book">
+              <div
+                class="quantity"
+                role="group"
+                [attr.aria-label]="'Кількість: ' + item.book.title"
+              >
+                <button
+                  mat-icon-button
+                  (click)="setQuantity(item, item.quantity - 1)"
+                  [disabled]="busy()"
+                  [attr.aria-label]="item.quantity === 1 ? 'Прибрати з кошика' : 'Менше'"
+                >
+                  <mat-icon>{{ item.quantity === 1 ? 'delete' : 'remove' }}</mat-icon>
+                </button>
+                <span class="value" aria-live="polite">{{ item.quantity }}</span>
+                <button
+                  mat-icon-button
+                  (click)="setQuantity(item, item.quantity + 1)"
+                  [disabled]="busy() || item.quantity >= maxQuantity(item)"
+                  aria-label="Більше"
+                >
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+              <span class="line-total">{{
+                item.lineTotal | currency: 'UAH' : 'symbol-narrow' : '1.0-2'
+              }}</span>
+              <button
+                mat-icon-button
+                (click)="remove(item)"
+                [disabled]="busy()"
+                aria-label="Прибрати з кошика"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </app-book-line>
+            @if (item.quantity > item.book.stock) {
+              <p class="short">
+                @if (item.book.stock === 0) {
+                  Цієї книжки зараз немає в наявності — приберіть її, щоб оформити замовлення.
+                } @else {
+                  В наявності лише {{ item.book.stock }} шт.
+                }
+              </p>
+            }
+          </li>
+        }
+      </ul>
+
+      <aside class="summary" aria-label="Підсумок">
+        <div class="row">
+          <span>{{ countLabel() }}</span>
+          <span>{{ cart.total | currency: 'UAH' : 'symbol-narrow' : '1.0-2' }}</span>
+        </div>
+        <div class="row total">
+          <span>До сплати</span>
+          <span>{{ cart.total | currency: 'UAH' : 'symbol-narrow' : '1.0-2' }}</span>
+        </div>
+        <button
+          mat-flat-button
+          class="checkout"
+          (click)="checkout()"
+          [disabled]="busy() || shortOfStock()"
+        >
+          Оформити замовлення
+        </button>
+        <button mat-button (click)="clear()" [disabled]="busy()">Очистити кошик</button>
+      </aside>
+    </div>
+  } @else {
+    <div class="empty">
+      <mat-icon>shopping_cart</mat-icon>
+      <p>Кошик порожній.</p>
+      <a mat-flat-button routerLink="/catalog">До каталогу</a>
+    </div>
+  }
+}

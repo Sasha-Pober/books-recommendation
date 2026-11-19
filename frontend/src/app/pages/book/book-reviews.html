@@ -1,0 +1,79 @@
+<h2>Оцінки й відгуки</h2>
+
+@if (canRate()) {
+  <form class="mine" (ngSubmit)="save()">
+    <fieldset class="stars" (mouseleave)="hover.set(0)">
+      <legend>{{ mine() ? 'Ваша оцінка' : 'Оцініть книгу' }}</legend>
+      @for (star of stars; track star) {
+        <label [class.lit]="star <= (hover() || score())" (mouseenter)="hover.set(star)">
+          <input
+            type="radio"
+            name="score"
+            class="visually-hidden"
+            [value]="star"
+            [checked]="score() === star"
+            (change)="score.set(star)"
+          />
+          <mat-icon aria-hidden="true">star</mat-icon>
+          <span class="visually-hidden">{{ star }} — {{ starLabel(star) }}</span>
+        </label>
+      }
+      @if (hover() || score(); as shown) {
+        <span class="star-label" aria-hidden="true">{{ starLabel(shown) }}</span>
+      }
+    </fieldset>
+
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Відгук (необовʼязково)</mat-label>
+      <textarea
+        matInput
+        name="reviewText"
+        rows="3"
+        [maxlength]="maxReview"
+        [ngModel]="text()"
+        (ngModelChange)="text.set($event)"
+      ></textarea>
+      <mat-hint align="end">{{ text().length }} / {{ maxReview }}</mat-hint>
+    </mat-form-field>
+
+    <div class="save">
+      <button mat-flat-button type="submit" [disabled]="!changed() || saving()">
+        {{ mine() ? 'Оновити оцінку' : 'Зберегти оцінку' }}
+      </button>
+      @if (message(); as m) {
+        <span [class.error]="m.error" role="status">{{ m.text }}</span>
+      }
+    </div>
+  </form>
+} @else if (auth.isReady() && !auth.isSignedIn()) {
+  <p class="invite">
+    <a routerLink="/login" [queryParams]="{ returnUrl: returnUrl() }">Увійдіть</a>, щоб оцінити
+    книгу й залишити відгук.
+  </p>
+}
+
+@if (reviews().length) {
+  <ul class="reviews">
+    @for (review of reviews(); track $index) {
+      <li>
+        <div class="head">
+          <strong>{{ review.reviewerName }}</strong>
+          <span class="score" [attr.aria-label]="'Оцінка ' + review.score + ' з 5'">
+            @for (star of stars; track star) {
+              <mat-icon aria-hidden="true" [class.lit]="star <= review.score">star</mat-icon>
+            }
+          </span>
+          <time [attr.datetime]="review.updatedAt">{{ review.updatedAt | date: 'd MMMM y' }}</time>
+        </div>
+        <p>{{ review.reviewText }}</p>
+      </li>
+    }
+  </ul>
+  @if (reviews().length < total()) {
+    <button mat-stroked-button (click)="loadMore()" [disabled]="loadingReviews()">
+      Показати ще
+    </button>
+  }
+} @else if (!loadingReviews()) {
+  <p class="none">Ще ніхто не написав відгуку про цю книгу.</p>
+}

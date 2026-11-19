@@ -463,23 +463,16 @@ export interface paths {
       };
       requestBody?: never;
       responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'text/plain': components['schemas']['SessionResponse'];
-            'application/json': components['schemas']['SessionResponse'];
-            'text/json': components['schemas']['SessionResponse'];
-          };
-        };
         /** @description Unauthorized */
         401: {
           headers: {
             [name: string]: unknown;
           };
-          content?: never;
+          content: {
+            'text/plain': components['schemas']['ProblemDetails'];
+            'application/json': components['schemas']['ProblemDetails'];
+            'text/json': components['schemas']['ProblemDetails'];
+          };
         };
       };
     };
@@ -507,8 +500,8 @@ export interface paths {
       };
       requestBody?: never;
       responses: {
-        /** @description No Content */
-        204: {
+        /** @description OK */
+        200: {
           headers: {
             [name: string]: unknown;
           };
@@ -780,6 +773,7 @@ export interface paths {
     get: {
       parameters: {
         query?: {
+          WithTextOnly?: boolean;
           Page?: number;
           PageSize?: number;
         };
@@ -835,6 +829,52 @@ export interface paths {
         };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/books/{id}/ratings/mine': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'text/plain': components['schemas']['ReviewDto'];
+            'application/json': components['schemas']['ReviewDto'];
+            'text/json': components['schemas']['ReviewDto'];
+          };
+        };
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1582,6 +1622,14 @@ export interface components {
       totalCount: number;
       /** Format: int32 */
       totalPages?: number;
+    };
+    ProblemDetails: {
+      type?: null | string;
+      title?: null | string;
+      /** Format: int32 */
+      status?: null | number;
+      detail?: null | string;
+      instance?: null | string;
     };
     PublisherDto: {
       /** Format: uuid */

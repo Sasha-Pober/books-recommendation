@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using BookStore.Domain.Entities;
+using BookStore.Presentation.Common;
 
 namespace BookStore.Presentation.Ratings;
 
@@ -11,6 +12,12 @@ public sealed record RateBookRequest
 
     [MaxLength(4000)]
     public string? ReviewText { get; init; }
+}
+
+/// <param name="WithTextOnly">Only ratings with a written review (most ratings are just a score).</param>
+public sealed record ReviewQuery : PageQuery
+{
+    public bool WithTextOnly { get; init; }
 }
 
 public sealed record ReviewDto(string ReviewerName, int Score, string? ReviewText, DateTime CreatedAt, DateTime UpdatedAt);
