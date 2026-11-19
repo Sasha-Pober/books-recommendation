@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
 
 import { AuthService } from './core/auth/auth.service';
 
@@ -30,6 +32,20 @@ import { AuthService } from './core/auth/auth.service';
 export class App {
   private readonly router = inject(Router);
   protected readonly auth = inject(AuthService);
+
+  /** The search box shows the catalog's current search (e.g. after Back, or on a shared link). */
+  protected readonly searchTerm = toSignal(
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      map(() => {
+        const tree = this.router.parseUrl(this.router.url);
+        return tree.root.children['primary']?.segments[0]?.path === 'catalog'
+          ? (tree.queryParamMap.get('search') ?? '')
+          : '';
+      }),
+    ),
+    { initialValue: '' },
+  );
 
   protected search(term: string): void {
     const query = term.trim();

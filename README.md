@@ -221,6 +221,13 @@ An Angular 22 SPA: standalone components, signals, zoneless change detection, An
 - **Guards:** `authGuard` sends guests to `/login?returnUrl=…`; `roleGuard(...)` checks roles; `guestOnlyGuard` keeps signed-in users off the sign-in pages. Return links must stay inside the app.
 - **Pages:** `/login`, `/register` (the password checklist mirrors Identity's rules), `/account`.
 
+**Catalog** (`/catalog`, `src/app/catalog`, `src/app/pages/catalog`):
+- **The URL holds the state:** `?search=&genre=&author=&publisher=&series=&lang=&priceFrom=&priceTo=&yearFrom=&yearTo=&inStock=1&sort=&page=&size=`. So results can be bookmarked and shared, and Back works. `catalog-query.ts` maps the URL to `/api/books` parameters, dropping malformed values (for example an id that isn't a GUID, or a page size above 100) instead of sending them.
+- **Fetching:** the page loads with `httpResource`. A new query cancels the previous request, and the last results stay on screen, dimmed, while the next ones load.
+- **Filters:** genre (as a tree), language (names from `Intl.DisplayNames`), price, year and availability. There are 15k authors and 8k publishers, too many for dropdowns, so author, publisher and series filters come from links on books and show as removable chips.
+- **Default sort:** relevance when searching, rating otherwise. The toolbar search box shows the current search.
+- **Covers:** the Goodreads image when there is one (56% of books); otherwise, or if it fails to load, a generated cover with the title and author.
+
 **Running locally.** Node is managed with [fnm](https://github.com/Schniz/fnm); the version is in `.node-version`.
 
 ```bash

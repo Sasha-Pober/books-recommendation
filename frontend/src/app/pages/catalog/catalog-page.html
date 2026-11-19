@@ -1,0 +1,105 @@
+<header class="header">
+  <h1>{{ heading() }}</h1>
+  @if (result(); as page) {
+    <p class="count" aria-live="polite">
+      Знайдено {{ page.totalCount | number }} {{ countLabel() }}
+    </p>
+  }
+</header>
+
+<div class="layout">
+  <aside class="filters" [class.open]="filtersOpen()" aria-label="Фільтри">
+    <app-catalog-filters [query]="query()" (changed)="applyFilters($event)" />
+  </aside>
+
+  <section class="results" aria-label="Результати">
+    <div class="toolbar">
+      <button
+        mat-stroked-button
+        class="filters-toggle"
+        (click)="filtersOpen.set(!filtersOpen())"
+        [attr.aria-expanded]="filtersOpen()"
+      >
+        <mat-icon>tune</mat-icon>
+        Фільтри
+        @if (activeFilters().length) {
+          ({{ activeFilters().length }})
+        }
+      </button>
+
+      <mat-form-field class="sort" appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Сортування</mat-label>
+        <mat-select [value]="sort()" (selectionChange)="changeSort($event.value)">
+          @for (option of sorts(); track option.value) {
+            <mat-option [value]="option.value">{{ option.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    @if (query().search || activeFilters().length) {
+      <mat-chip-set class="chips" aria-label="Застосовані фільтри">
+        @if (query().search; as search) {
+          <mat-chip (removed)="clearSearch()">
+            «{{ search }}»
+            <button matChipRemove [attr.aria-label]="'Прибрати пошук ' + search">
+              <mat-icon>cancel</mat-icon>
+            </button>
+          </mat-chip>
+        }
+        @for (filter of activeFilters(); track filter.label) {
+          <mat-chip (removed)="applyFilters(filter.clear)">
+            {{ filter.label }}
+            <button matChipRemove [attr.aria-label]="'Прибрати фільтр ' + filter.label">
+              <mat-icon>cancel</mat-icon>
+            </button>
+          </mat-chip>
+        }
+        @if (activeFilters().length > 1) {
+          <button mat-button class="clear-all" (click)="clearFilters()">Скинути фільтри</button>
+        }
+      </mat-chip-set>
+    }
+
+    <div class="progress">
+      @if (books.isLoading()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Завантаження" />
+      }
+    </div>
+
+    @if (books.error() && !books.isLoading()) {
+      <div class="message" role="alert">
+        <mat-icon>cloud_off</mat-icon>
+        <p>Не вдалося завантажити книги.</p>
+        <button mat-flat-button (click)="books.reload()">Спробувати ще раз</button>
+      </div>
+    } @else if (result(); as page) {
+      @if (page.items.length) {
+        <ul class="grid" [class.stale]="books.isLoading()">
+          @for (book of page.items; track book.id) {
+            <li><app-book-card [book]="book" /></li>
+          }
+        </ul>
+        <mat-paginator
+          [length]="page.totalCount"
+          [pageIndex]="query().page - 1"
+          [pageSize]="query().pageSize"
+          [pageSizeOptions]="pageSizes"
+          [showFirstLastButtons]="true"
+          (page)="changePage($event)"
+        />
+      } @else if (!books.isLoading()) {
+        <div class="message">
+          <mat-icon>search_off</mat-icon>
+          <p>Нічого не знайдено.</p>
+          @if (activeFilters().length) {
+            <p class="hint">Спробуйте прибрати частину фільтрів.</p>
+            <button mat-stroked-button (click)="clearFilters()">Скинути фільтри</button>
+          } @else if (query().search) {
+            <p class="hint">Перевірте написання або спробуйте коротший запит.</p>
+          }
+        </div>
+      }
+    }
+  </section>
+</div>

@@ -21,3 +21,6 @@ export interface ProblemDetails {
   detail?: string;
   errors?: Record<string, string[]>;
 }
+export type BookSort = NonNullable<Schemas['BookSort']>;
+export type PublisherDto = Schemas['PublisherDto'];
+export type SeriesDto = Schemas['SeriesDto'];

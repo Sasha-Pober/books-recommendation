@@ -1,0 +1,138 @@
+.header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+
+  h1 {
+    margin: 0;
+    font: var(--mat-sys-headline-small);
+    overflow-wrap: anywhere;
+  }
+}
+
+.count {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.filters {
+  position: sticky;
+  top: 88px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.filters-toggle {
+  display: none;
+  margin-right: auto;
+}
+
+.sort {
+  width: 220px;
+}
+
+.chips {
+  margin-top: 12px;
+}
+
+.clear-all {
+  margin-left: 4px;
+}
+
+.progress {
+  height: 4px;
+  margin: 12px 0 8px;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px 8px;
+  transition: opacity 150ms;
+
+  &.stale {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+mat-paginator {
+  margin-top: 24px;
+  background: transparent;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 64px 16px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+  }
+
+  p {
+    margin: 0;
+    font: var(--mat-sys-title-medium);
+  }
+
+  .hint {
+    font: var(--mat-sys-body-medium);
+    margin-bottom: 8px;
+  }
+}
+
+// Narrow screens: filters fold away behind a button above the results.
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .filters {
+    position: static;
+    display: none;
+    padding: 16px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    background: var(--mat-sys-surface-container-low);
+
+    &.open {
+      display: block;
+    }
+  }
+
+  .filters-toggle {
+    display: inline-flex;
+  }
+
+  .sort {
+    width: 190px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
