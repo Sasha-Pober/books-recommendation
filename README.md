@@ -228,6 +228,12 @@ An Angular 22 SPA: standalone components, signals, zoneless change detection, An
 - **Default sort:** relevance when searching, rating otherwise. The toolbar search box shows the current search.
 - **Covers:** the Goodreads image when there is one (56% of books); otherwise, or if it fails to load, a generated cover with the title and author.
 
+**Home page** (`/`):
+- **«Рекомендовано для вас»:** when the API's `source` is `ml`, the model's list is shown as one row, each book with its explanation. The model draws on a signed-in user's history, or on a guest's views in this browser.
+- **Fallback:** with `source` `baseline` (a new visitor, or the recommendation service down), the same response is split into «Популярне зараз» (`Bestseller`/`Trending`) and «Новинки» (`NewRelease`).
+- **Reloading:** the request waits until the session is restored, so a returning user doesn't first get a guest's list, and it reloads when the user signs in or out.
+- **Also on the page:** a greeting and the top-level genres as shortcuts into the catalog.
+
 **Book page** (`/books/:id`):
 - **Details:** cover, rating, price and availability, publisher, series, language, year, pages, ISBN and annotation. Authors, genres, publisher and series link into the catalog filters.
 - **«Схожі книги»:** a row of recommendations, each with its explanation. If this optional block fails it's simply left out, without the global error message (`SILENT_ERRORS`). `RecommendationRow` is shared with the home page.

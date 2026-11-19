@@ -1,0 +1,47 @@
+<section class="hero">
+  <h1>{{ greeting() }}</h1>
+  <p>
+    @if (personal()) {
+      Ми підібрали ці книжки за вашими переглядами та покупками. Під кожною — чому саме вона.
+    } @else {
+      Переглядайте книжки, що вас цікавлять, — і тут зʼявляться рекомендації саме для вас.
+    }
+  </p>
+  @if (topGenres().length) {
+    <mat-chip-set class="genres" aria-label="Жанри">
+      @for (genre of topGenres(); track genre.id) {
+        <a mat-chip [routerLink]="['/catalog']" [queryParams]="{ genre: genre.id }">{{
+          genre.name
+        }}</a>
+      }
+    </mat-chip-set>
+  }
+</section>
+
+@if (recommendations.error() && !recommendations.isLoading()) {
+  <div class="message" role="alert">
+    <mat-icon>cloud_off</mat-icon>
+    <p>Не вдалося завантажити рекомендації.</p>
+    <div class="actions">
+      <button mat-flat-button (click)="recommendations.reload()">Спробувати ще раз</button>
+      <a mat-stroked-button routerLink="/catalog">До каталогу</a>
+    </div>
+  </div>
+} @else if (rows().length) {
+  @for (row of rows(); track row.heading) {
+    <app-recommendation-row class="row" [heading]="row.heading" [items]="row.items" />
+  }
+} @else if (recommendations.isLoading() || !auth.isReady()) {
+  <app-recommendation-row
+    class="row"
+    heading="Рекомендовано для вас"
+    [items]="[]"
+    [loading]="true"
+  />
+} @else {
+  <div class="message">
+    <mat-icon>auto_stories</mat-icon>
+    <p>Поки що нічого порадити.</p>
+    <a mat-flat-button routerLink="/catalog">Переглянути каталог</a>
+  </div>
+}
