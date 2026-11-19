@@ -14,6 +14,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/catalog/catalog-page').then((m) => m.CatalogPage),
   },
   {
+    path: 'books/:id',
+    title: 'Книгарня',
+    loadComponent: () => import('./pages/book/book-page').then((m) => m.BookPage),
+  },
+  {
     path: 'login',
     title: 'Вхід — Книгарня',
     canActivate: [guestOnlyGuard],

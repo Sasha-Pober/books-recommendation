@@ -3,32 +3,11 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
-import type { BookDto, PagedBooks } from '../../api/models';
+import type { PagedBooks } from '../../api/models';
+import { AUTHOR_ID, book } from '../../../testing/books';
 import { CatalogPage } from './catalog-page';
 
-function book(n: number, overrides: Partial<BookDto> = {}): BookDto {
-  return {
-    id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
-    title: `Книга ${n}`,
-    isbn: null,
-    annotation: null,
-    language: 'uk',
-    year: 2020,
-    pages: 100,
-    coverImageUrl: null,
-    price: 250,
-    stock: 3,
-    authors: [{ id: 'a0000000-0000-4000-8000-000000000001', fullName: 'Ліна Костенко', bio: null }],
-    genres: [],
-    publisher: null,
-    series: null,
-    averageRating: 4.5,
-    ratingsCount: 12,
-    ...overrides,
-  };
-}
-
-const AUTHOR = 'a0000000-0000-4000-8000-000000000001';
+const AUTHOR = AUTHOR_ID;
 
 describe('CatalogPage', () => {
   let backend: HttpTestingController;

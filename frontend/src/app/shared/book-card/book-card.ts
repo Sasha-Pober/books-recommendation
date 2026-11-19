@@ -12,7 +12,7 @@ import { Rating } from '../rating/rating';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [BookCover, CurrencyPipe, Rating, RouterLink],
   template: `
-    <a class="card" [routerLink]="['/books', book().id]">
+    <a class="card" [routerLink]="['/books', book().id]" [state]="state()">
       <app-book-cover [book]="book()" />
       <span class="title" [title]="book().title">{{ book().title }}</span>
       <span class="authors">{{ authors() }}</span>
@@ -96,6 +96,13 @@ import { Rating } from '../rating/rating';
 })
 export class BookCard {
   readonly book = input.required<BookDto>();
+  /** Set when the card shows a recommendation: the book page reports the click with it. */
+  readonly recommendationLogId = input<number | null>();
+
+  protected readonly state = computed(() => {
+    const logId = this.recommendationLogId();
+    return logId ? { recommendationLogId: logId } : undefined;
+  });
 
   protected readonly authors = computed(() =>
     this.book()

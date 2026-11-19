@@ -1,0 +1,148 @@
+.back {
+  margin: -8px 0 8px -8px;
+}
+
+.book {
+  display: grid;
+  grid-template-columns: minmax(180px, 300px) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+
+  h1 {
+    margin: 0;
+    font: var(--mat-sys-headline-medium);
+    overflow-wrap: anywhere;
+  }
+}
+
+.authors {
+  margin: -4px 0 0;
+  font: var(--mat-sys-title-medium);
+}
+
+a:not([mat-chip]):not([mat-button]):not([mat-flat-button]) {
+  color: var(--mat-sys-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.buy {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 16px 0;
+  border-block: 1px solid var(--mat-sys-outline-variant);
+}
+
+.price {
+  font: var(--mat-sys-headline-small);
+}
+
+.stock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &.in {
+    color: var(--mat-sys-primary);
+  }
+
+  &.out {
+    color: var(--mat-sys-error);
+  }
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 24px;
+  margin: 0;
+
+  dt {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.annotation {
+  p {
+    margin: 0;
+    white-space: pre-line;
+    line-height: 1.6;
+  }
+
+  .collapsed {
+    display: -webkit-box;
+    -webkit-line-clamp: 8;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  button {
+    margin-left: -12px;
+  }
+}
+
+.similar {
+  margin-top: 48px;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 64px 16px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+  }
+
+  h1,
+  p {
+    margin: 0;
+  }
+
+  h1 {
+    font: var(--mat-sys-title-large);
+    color: var(--mat-sys-on-surface);
+  }
+}
+
+@media (max-width: 640px) {
+  .book {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .cover {
+    width: 60%;
+    max-width: 220px;
+    justify-self: center;
+  }
+}

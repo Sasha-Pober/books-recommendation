@@ -13,6 +13,11 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
 {
     private const string LikeEscapeCharacter = "\\";
 
+    // "Similar books" (metadata fallback): genres up to this size contribute all their books as candidates,
+    // larger ones their most rated books.
+    private const int SmallGenreSize = 2000;
+    private const int LargeGenreCandidates = 200;
+
     /// <summary>C in the Bayesian average: how many "average" ratings every book starts with.</summary>
     private const double RatingPriorWeight = 10;
 
@@ -184,37 +189,72 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
             .Select(b => b.Id)
             .ToListAsync(cancellationToken);
 
+    /// <summary>
+    /// Candidates: the source's authors' books, plus per genre either all its books (small genres) or its
+    /// <see cref="LargeGenreCandidates"/> most rated in-stock books (large ones, walked along
+    /// <c>ix_books_rating_count</c>; the whole catalog may share a genre such as "Poetry"). Ranked by same author
+    /// (+2) and shared genres (+1 each), then by number of ratings. Separate statements, so that each genre gets
+    /// the plan that suits its size.
+    /// </summary>
     public async Task<IReadOnlyList<ScoredBook>> FindSimilarByMetadataAsync(
         Guid bookId, int count, IReadOnlyCollection<Guid> excludeIds, CancellationToken cancellationToken)
     {
-        var source = await db.Books
+        var authorIds = await db.Books
             .Where(b => b.Id == bookId)
-            .Select(b => new
-            {
-                AuthorIds = b.Authors.Select(a => a.Id).ToList(),
-                GenreIds = b.Genres.Select(g => g.Id).ToList(),
-            })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (source is null)
+            .SelectMany(b => b.Authors.Select(a => a.Id))
+            .ToListAsync(cancellationToken);
+        // Sizes are counted only up to SmallGenreSize + 1: enough to choose the strategy.
+        var genres = await db.Genres
+            .Where(g => g.Books.Any(b => b.Id == bookId))
+            .Select(g => new { g.Id, Size = g.Books.Select(b => b.Id).Take(SmallGenreSize + 1).Count() })
+            .ToListAsync(cancellationToken);
+        if (authorIds.Count == 0 && genres.Count == 0)
         {
             return [];
         }
 
-        var authorIds = source.AuthorIds;
-        var genreIds = source.GenreIds;
-        var excluded = excludeIds.Append(bookId).ToList();
+        var candidates = new HashSet<Guid>(await db.Authors
+            .Where(a => authorIds.Contains(a.Id))
+            .SelectMany(a => a.Books.Select(b => b.Id))
+            .ToListAsync(cancellationToken));
+        foreach (var genre in genres)
+        {
+            var genreId = genre.Id;
+            var ids = genre.Size <= SmallGenreSize
+                ? await db.Genres
+                    .Where(g => g.Id == genreId)
+                    .SelectMany(g => g.Books.Select(b => b.Id))
+                    .ToListAsync(cancellationToken)
+                : await db.Books
+                    .Where(b => b.Stock > 0 && b.Genres.Any(g => g.Id == genreId))
+                    .OrderByDescending(b => b.RatingCount)
+                    .ThenBy(b => b.Id)
+                    .Select(b => b.Id)
+                    .Take(LargeGenreCandidates)
+                    .ToListAsync(cancellationToken);
+            candidates.UnionWith(ids);
+        }
 
+        candidates.Remove(bookId);
+        candidates.ExceptWith(excludeIds);
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        var genreIds = genres.Select(g => g.Id).ToList();
+        var candidateIds = candidates.ToList();
         var similar = await db.Books
-            .Where(b => b.Stock > 0 && !excluded.Contains(b.Id))
-            .Where(b => b.Authors.Any(a => authorIds.Contains(a.Id)) || b.Genres.Any(g => genreIds.Contains(g.Id)))
+            .Where(b => candidateIds.Contains(b.Id) && b.Stock > 0)
             .Select(b => new
             {
                 b.Id,
+                b.RatingCount,
                 SameAuthor = b.Authors.Any(a => authorIds.Contains(a.Id)),
                 SharedGenres = b.Genres.Count(g => genreIds.Contains(g.Id)),
             })
             .OrderByDescending(x => (x.SameAuthor ? 2 : 0) + x.SharedGenres)
+            .ThenByDescending(x => x.RatingCount)
             .ThenBy(x => x.Id)
             .Take(count)
             .ToListAsync(cancellationToken);

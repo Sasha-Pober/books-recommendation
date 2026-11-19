@@ -1,0 +1,118 @@
+<nav class="back">
+  <a mat-button routerLink="/catalog"><mat-icon>arrow_back</mat-icon> Каталог</a>
+</nav>
+
+@if (notFound()) {
+  <div class="message">
+    <mat-icon>menu_book</mat-icon>
+    <h1>Книгу не знайдено</h1>
+    <p>Можливо, її вилучили з каталогу або посилання неповне.</p>
+    <a mat-flat-button routerLink="/catalog">До каталогу</a>
+  </div>
+} @else if (book.error() && !book.isLoading()) {
+  <div class="message" role="alert">
+    <mat-icon>cloud_off</mat-icon>
+    <p>Не вдалося завантажити книгу.</p>
+    <button mat-flat-button (click)="book.reload()">Спробувати ще раз</button>
+  </div>
+} @else if (current(); as b) {
+  <article class="book">
+    <app-book-cover class="cover" [book]="b" />
+
+    <div class="details">
+      <h1>{{ b.title }}</h1>
+      <p class="authors">
+        @for (author of b.authors; track author.id; let last = $last) {
+          <a [routerLink]="['/catalog']" [queryParams]="{ author: author.id }">{{
+            author.fullName
+          }}</a>{{ last ? '' : ', ' }}
+        }
+      </p>
+      <app-rating [average]="b.averageRating" [count]="b.ratingsCount" />
+
+      <div class="buy">
+        <span class="price">{{ b.price | currency: 'UAH' : 'symbol-narrow' : '1.0-2' }}</span>
+        @if (b.stock > 0) {
+          <span class="stock in"
+            ><mat-icon aria-hidden="true">check_circle</mat-icon> В наявності</span
+          >
+        } @else {
+          <span class="stock out"
+            ><mat-icon aria-hidden="true">block</mat-icon> Немає в наявності</span
+          >
+        }
+      </div>
+
+      <dl class="facts">
+        @if (b.publisher; as publisher) {
+          <dt>Видавництво</dt>
+          <dd>
+            <a [routerLink]="['/catalog']" [queryParams]="{ publisher: publisher.id }">{{
+              publisher.name
+            }}</a>
+          </dd>
+        }
+        @if (b.series; as series) {
+          <dt>Серія</dt>
+          <dd>
+            <a [routerLink]="['/catalog']" [queryParams]="{ series: series.id }">{{
+              series.name
+            }}</a>
+          </dd>
+        }
+        @if (language(); as name) {
+          <dt>Мова</dt>
+          <dd>{{ name }}</dd>
+        }
+        @if (b.year) {
+          <dt>Рік видання</dt>
+          <dd>{{ b.year }}</dd>
+        }
+        @if (b.pages) {
+          <dt>Сторінок</dt>
+          <dd>{{ b.pages }}</dd>
+        }
+        @if (b.isbn) {
+          <dt>ISBN</dt>
+          <dd>{{ b.isbn }}</dd>
+        }
+      </dl>
+
+      @if (b.genres.length) {
+        <mat-chip-set aria-label="Жанри">
+          @for (genre of b.genres; track genre.id) {
+            <a mat-chip [routerLink]="['/catalog']" [queryParams]="{ genre: genre.id }">{{
+              genre.name
+            }}</a>
+          }
+        </mat-chip-set>
+      }
+
+      @if (b.annotation) {
+        <section class="annotation" aria-label="Анотація">
+          <p [class.collapsed]="isLongAnnotation() && !expanded()">{{ b.annotation }}</p>
+          @if (isLongAnnotation()) {
+            <button
+              mat-button
+              (click)="expanded.set(!expanded())"
+              [attr.aria-expanded]="expanded()"
+            >
+              {{ expanded() ? 'Згорнути' : 'Читати повністю' }}
+            </button>
+          }
+        </section>
+      }
+    </div>
+  </article>
+
+  @if (similar.isLoading() || similarItems().length) {
+    <app-recommendation-row
+      class="similar"
+      heading="Схожі книги"
+      [items]="similarItems()"
+      [loading]="similar.isLoading()"
+    />
+  }
+} @else {
+  <mat-progress-bar mode="indeterminate" aria-label="Завантаження" />
+}

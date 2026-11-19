@@ -159,6 +159,10 @@ namespace BookStore.Infrastructure.Persistence.Migrations
                     b.HasIndex("Title")
                         .HasDatabaseName("ix_books_title");
 
+                    b.HasIndex(new[] { "RatingCount", "Id" }, "ix_books_rating_count")
+                        .IsDescending(true, false)
+                        .HasDatabaseName("ix_books_rating_count");
+
                     b.HasIndex(new[] { "Title" }, "ix_books_title_trgm")
                         .HasDatabaseName("ix_books_title_trgm");
 

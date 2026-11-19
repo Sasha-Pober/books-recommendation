@@ -1,7 +1,10 @@
-import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { HttpContextToken, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, throwError } from 'rxjs';
+
+/** Requests whose failure is not worth telling the user about (background events, optional blocks). */
+export const SILENT_ERRORS = new HttpContextToken<boolean>(() => false);
 
 /**
  * Network failures and server errors are reported once, here; callers still receive the error.
@@ -11,7 +14,12 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
   const snackBar = inject(MatSnackBar);
   return next(request).pipe(
     catchError((error: unknown) => {
-      if (error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500)) {
+      const reported = !request.context.get(SILENT_ERRORS);
+      if (
+        reported &&
+        error instanceof HttpErrorResponse &&
+        (error.status === 0 || error.status >= 500)
+      ) {
         const message =
           error.status === 0
             ? 'Немає зʼєднання з сервером. Перевірте інтернет і спробуйте ще раз.'

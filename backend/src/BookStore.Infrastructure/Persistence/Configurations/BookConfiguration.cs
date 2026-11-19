@@ -27,6 +27,10 @@ internal sealed class BookConfiguration : IEntityTypeConfiguration<Book>
 
         builder.HasIndex(b => b.Isbn).IsUnique();
         builder.HasIndex(b => b.Title);
+        // Most rated first: the "similar books" walk through large genres.
+        builder.HasIndex(b => new { b.RatingCount, b.Id }, "ix_books_rating_count")
+            .HasDatabaseName("ix_books_rating_count")
+            .IsDescending(true, false);
         // Substring search (ILIKE '%…%') on titles; needs the pg_trgm extension.
         // (The database name is explicit: the snake_case convention would rename it to ix_books_title.)
         builder.HasIndex(b => b.Title, "ix_books_title_trgm")

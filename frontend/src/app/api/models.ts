@@ -24,3 +24,5 @@ export interface ProblemDetails {
 export type BookSort = NonNullable<Schemas['BookSort']>;
 export type PublisherDto = Schemas['PublisherDto'];
 export type SeriesDto = Schemas['SeriesDto'];
+export type InteractionType = Schemas['InteractionType'];
+export type InteractionEvent = Schemas['InteractionEvent'];

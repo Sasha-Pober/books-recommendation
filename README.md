@@ -154,7 +154,7 @@ Each item has a `reason`, a Ukrainian `explanation` (e.g. «Схожа на кн
   - **No retries:** there's no time for them within the 100 ms budget.
 - **Fallback:** if the call fails, times out or returns nothing, `BaselineRecommendationEngine` answers instead:
   - home: bestsellers (copies sold in the 90 days before the latest order, padded with books trending in the 30 days before the latest event) interleaved with new releases. The windows end at the latest activity rather than now, which is the same thing in a live store and still works on imported historical data;
-  - similar books: shared authors and genres.
+  - similar books: shared authors and genres. Candidates are the same authors' books plus, per genre, either all of its books (genres of up to 2,000 books) or its 200 most rated in stock (larger ones, walked along `ix_books_rating_count`, since a genre like "Poetry" may cover the whole catalog). They're scored +2 for the same author and +1 per shared genre, ties going to the more rated book. That takes 2–25 ms in the database, where one query over every book sharing a genre took ~400 ms.
 - **Without a `BaseUrl`,** the baseline is the only engine.
 
 **Collections cache.** Bestsellers and new releases are precomputed every 10 minutes by `RecommendationCollectionRefresher` and kept in Redis (`ConnectionStrings:Redis`) for 1 hour.
@@ -227,6 +227,11 @@ An Angular 22 SPA: standalone components, signals, zoneless change detection, An
 - **Filters:** genre (as a tree), language (names from `Intl.DisplayNames`), price, year and availability. There are 15k authors and 8k publishers, too many for dropdowns, so author, publisher and series filters come from links on books and show as removable chips.
 - **Default sort:** relevance when searching, rating otherwise. The toolbar search box shows the current search.
 - **Covers:** the Goodreads image when there is one (56% of books); otherwise, or if it fails to load, a generated cover with the title and author.
+
+**Book page** (`/books/:id`):
+- **Details:** cover, rating, price and availability, publisher, series, language, year, pages, ISBN and annotation. Authors, genres, publisher and series link into the catalog filters.
+- **«Схожі книги»:** a row of recommendations, each with its explanation. If this optional block fails it's simply left out, without the global error message (`SILENT_ERRORS`). `RecommendationRow` is shared with the home page.
+- **Views:** opening a book records one `View` event (`InteractionEvents`, sent with `keepalive`, errors ignored). A recommendation card passes its `logId` in the navigation state, so the view also marks that impression clicked in `recommendation_logs`, which is the CTR measure for the A/B comparison.
 
 **Running locally.** Node is managed with [fnm](https://github.com/Schniz/fnm); the version is in `.node-version`.
 
