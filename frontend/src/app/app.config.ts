@@ -13,6 +13,8 @@ import { MatIconRegistry } from '@angular/material/icon';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 
 import { routes } from './app.routes';
+import { authInterceptor } from './core/auth/auth.interceptor';
+import { AuthService } from './core/auth/auth.service';
 import { errorInterceptor } from './core/http/error.interceptor';
 
 // Dates, numbers and prices are formatted for Ukrainian (e.g. "350,00 ₴").
@@ -22,12 +24,14 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withFetch(), withInterceptors([errorInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor, errorInterceptor])),
     { provide: LOCALE_ID, useValue: 'uk' },
     { provide: DEFAULT_CURRENCY_CODE, useValue: 'UAH' },
     // <mat-icon> uses the Material Symbols font loaded in index.html.
     provideAppInitializer(() => {
       inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-outlined');
+      // Starts restoring the previous session right away; pages don't wait for it (guards and requests do).
+      inject(AuthService);
     }),
   ],
 };

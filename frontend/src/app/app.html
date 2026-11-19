@@ -17,6 +17,41 @@
 
   <nav class="links" aria-label="Основна навігація">
     <a mat-button routerLink="/catalog" routerLinkActive="active">Каталог</a>
+
+    @if (auth.isReady()) {
+      @if (auth.user(); as user) {
+        <button
+          mat-button
+          class="account"
+          [matMenuTriggerFor]="accountMenu"
+          aria-label="Меню акаунта"
+        >
+          <mat-icon>account_circle</mat-icon>
+          <span class="account-name">{{ user.fullName }}</span>
+        </button>
+        <mat-menu #accountMenu="matMenu" xPosition="before">
+          <div class="menu-header" mat-menu-item disabled>{{ user.email }}</div>
+          <mat-divider />
+          <a mat-menu-item routerLink="/account">
+            <mat-icon>person</mat-icon>
+            <span>Мій акаунт</span>
+          </a>
+          <button mat-menu-item (click)="logout()">
+            <mat-icon>logout</mat-icon>
+            <span>Вийти</span>
+          </button>
+        </mat-menu>
+      } @else {
+        <a
+          mat-flat-button
+          routerLink="/login"
+          [queryParams]="currentUrl() ? { returnUrl: currentUrl() } : {}"
+          routerLinkActive="active"
+        >
+          Увійти
+        </a>
+      }
+    }
   </nav>
 </mat-toolbar>
 

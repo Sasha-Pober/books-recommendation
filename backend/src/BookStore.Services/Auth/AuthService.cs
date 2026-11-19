@@ -10,14 +10,14 @@ namespace BookStore.Services.Auth;
 public interface IAuthService
 {
     /// <summary>Creates a <see cref="Roles.Customer"/> account and signs it in.</summary>
-    Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken);
+    Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken);
 
-    Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken);
+    Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken);
 
     /// <summary>Exchanges a refresh token for a new token pair (the old refresh token stops working).</summary>
-    Task<AuthResponse> RefreshAsync(RefreshTokenRequest request, CancellationToken cancellationToken);
+    Task<AuthResult> RefreshAsync(string refreshToken, CancellationToken cancellationToken);
 
-    Task LogoutAsync(RefreshTokenRequest request, CancellationToken cancellationToken);
+    Task LogoutAsync(string refreshToken, CancellationToken cancellationToken);
 
     Task<UserDto> GetCurrentUserAsync(CancellationToken cancellationToken);
 }
@@ -30,7 +30,7 @@ internal sealed class AuthService(
     IUnitOfWork unitOfWork,
     ILogger<AuthService> logger) : IAuthService
 {
-    public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
+    public async Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
         var user = await identity.RegisterAsync(
             request.Email.Trim(), request.Password, request.FullName.Trim(), Roles.Customer, cancellationToken);
@@ -38,7 +38,7 @@ internal sealed class AuthService(
         return await SignInAsync(user, cancellationToken);
     }
 
-    public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
+    public async Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
         var user = await identity.ValidateCredentialsAsync(request.Email.Trim(), request.Password, cancellationToken)
                    ?? throw new UnauthorizedException("Invalid email or password.");
@@ -46,9 +46,9 @@ internal sealed class AuthService(
         return await SignInAsync(user, cancellationToken);
     }
 
-    public async Task<AuthResponse> RefreshAsync(RefreshTokenRequest request, CancellationToken cancellationToken)
+    public async Task<AuthResult> RefreshAsync(string refreshToken, CancellationToken cancellationToken)
     {
-        var userId = await tokens.RedeemRefreshTokenAsync(request.RefreshToken, cancellationToken);
+        var userId = await tokens.RedeemRefreshTokenAsync(refreshToken, cancellationToken);
         var user = userId is { } id ? await identity.FindByIdAsync(id, cancellationToken) : null;
         if (user is null)
         {
@@ -60,9 +60,9 @@ internal sealed class AuthService(
         return await IssueTokensAsync(user, cancellationToken);
     }
 
-    public async Task LogoutAsync(RefreshTokenRequest request, CancellationToken cancellationToken)
+    public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken)
     {
-        await tokens.RevokeRefreshTokenAsync(request.RefreshToken, cancellationToken);
+        await tokens.RevokeRefreshTokenAsync(refreshToken, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -73,7 +73,7 @@ internal sealed class AuthService(
         return user is null ? throw new UnauthorizedException("Not signed in.") : ToDto(user);
     }
 
-    private async Task<AuthResponse> SignInAsync(UserAccount user, CancellationToken cancellationToken)
+    private async Task<AuthResult> SignInAsync(UserAccount user, CancellationToken cancellationToken)
     {
         var merged = await interactions.AssignGuestSessionAsync(currentUser.SessionId, user.Id, cancellationToken);
         if (merged > 0)
@@ -84,13 +84,13 @@ internal sealed class AuthService(
         return await IssueTokensAsync(user, cancellationToken);
     }
 
-    private async Task<AuthResponse> IssueTokensAsync(UserAccount user, CancellationToken cancellationToken)
+    private async Task<AuthResult> IssueTokensAsync(UserAccount user, CancellationToken cancellationToken)
     {
         var access = tokens.CreateAccessToken(user);
         var refresh = await tokens.CreateRefreshTokenAsync(user.Id, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new AuthResponse(access.Token, access.ExpiresAt, refresh.Token, refresh.ExpiresAt, ToDto(user));
+        return new AuthResult(access.Token, access.ExpiresAt, refresh.Token, refresh.ExpiresAt, ToDto(user));
     }
 
     private static UserDto ToDto(UserAccount user) => new(user.Id, user.Email, user.FullName, user.Roles);

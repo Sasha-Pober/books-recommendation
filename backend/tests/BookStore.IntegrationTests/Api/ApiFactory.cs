@@ -35,7 +35,7 @@ public sealed class ApiFactory(string connectionString) : WebApplicationFactory<
         var client = CreateClient();
         var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
         response.EnsureSuccessStatusCode();
-        var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
+        var auth = (await response.Content.ReadFromJsonAsync<SessionResponse>())!;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
         return client;
     }

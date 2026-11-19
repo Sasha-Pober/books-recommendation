@@ -48,3 +48,23 @@
   margin: 0 auto;
   padding: 24px 16px;
 }
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .brand span,
+  .account-name {
+    display: none;
+  }
+}

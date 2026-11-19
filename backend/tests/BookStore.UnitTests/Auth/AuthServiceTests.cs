@@ -70,7 +70,7 @@ public class AuthServiceTests
         _tokens.RedeemRefreshTokenAsync("stolen", Arg.Any<CancellationToken>()).Returns((Guid?)null);
 
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
-            CreateService().RefreshAsync(new RefreshTokenRequest("stolen"), CancellationToken.None));
+            CreateService().RefreshAsync("stolen", CancellationToken.None));
 
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         _tokens.DidNotReceiveWithAnyArgs().CreateAccessToken(default!);
@@ -83,7 +83,7 @@ public class AuthServiceTests
         _tokens.RedeemRefreshTokenAsync("valid", Arg.Any<CancellationToken>()).Returns(_user.Id);
         _identity.FindByIdAsync(_user.Id, Arg.Any<CancellationToken>()).Returns(promoted);
 
-        var response = await CreateService().RefreshAsync(new RefreshTokenRequest("valid"), CancellationToken.None);
+        var response = await CreateService().RefreshAsync("valid", CancellationToken.None);
 
         Assert.Equal([Roles.Manager], response.User.Roles);
         _tokens.Received(1).CreateAccessToken(promoted);

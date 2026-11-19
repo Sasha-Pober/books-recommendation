@@ -389,9 +389,9 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            'text/plain': components['schemas']['AuthResponse'];
-            'application/json': components['schemas']['AuthResponse'];
-            'text/json': components['schemas']['AuthResponse'];
+            'text/plain': components['schemas']['SessionResponse'];
+            'application/json': components['schemas']['SessionResponse'];
+            'text/json': components['schemas']['SessionResponse'];
           };
         };
       };
@@ -432,9 +432,9 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            'text/plain': components['schemas']['AuthResponse'];
-            'application/json': components['schemas']['AuthResponse'];
-            'text/json': components['schemas']['AuthResponse'];
+            'text/plain': components['schemas']['SessionResponse'];
+            'application/json': components['schemas']['SessionResponse'];
+            'text/json': components['schemas']['SessionResponse'];
           };
         };
       };
@@ -461,13 +461,7 @@ export interface paths {
         path?: never;
         cookie?: never;
       };
-      requestBody: {
-        content: {
-          'application/json': components['schemas']['RefreshTokenRequest'];
-          'text/json': components['schemas']['RefreshTokenRequest'];
-          'application/*+json': components['schemas']['RefreshTokenRequest'];
-        };
-      };
+      requestBody?: never;
       responses: {
         /** @description OK */
         200: {
@@ -475,10 +469,17 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            'text/plain': components['schemas']['AuthResponse'];
-            'application/json': components['schemas']['AuthResponse'];
-            'text/json': components['schemas']['AuthResponse'];
+            'text/plain': components['schemas']['SessionResponse'];
+            'application/json': components['schemas']['SessionResponse'];
+            'text/json': components['schemas']['SessionResponse'];
           };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
         };
       };
     };
@@ -504,16 +505,10 @@ export interface paths {
         path?: never;
         cookie?: never;
       };
-      requestBody: {
-        content: {
-          'application/json': components['schemas']['RefreshTokenRequest'];
-          'text/json': components['schemas']['RefreshTokenRequest'];
-          'application/*+json': components['schemas']['RefreshTokenRequest'];
-        };
-      };
+      requestBody?: never;
       responses: {
-        /** @description OK */
-        200: {
+        /** @description No Content */
+        204: {
           headers: {
             [name: string]: unknown;
           };
@@ -1418,15 +1413,6 @@ export interface components {
       fullName: string;
       bio: null | string;
     };
-    AuthResponse: {
-      accessToken: string;
-      /** Format: date-time */
-      accessTokenExpiresAt: string;
-      refreshToken: string;
-      /** Format: date-time */
-      refreshTokenExpiresAt: string;
-      user: components['schemas']['UserDto'];
-    };
     BookDto: {
       /** Format: uuid */
       id: string;
@@ -1636,9 +1622,6 @@ export interface components {
     RecordInteractionsRequest: {
       events: components['schemas']['InteractionEvent'][];
     };
-    RefreshTokenRequest: {
-      refreshToken: string;
-    };
     RegisterRequest: {
       email: string;
       password: string;
@@ -1658,6 +1641,12 @@ export interface components {
       /** Format: uuid */
       id: string;
       name: string;
+    };
+    SessionResponse: {
+      accessToken: string;
+      /** Format: date-time */
+      accessTokenExpiresAt: string;
+      user: components['schemas']['UserDto'];
     };
     UpdateCartItemRequest: {
       /** Format: int32 */

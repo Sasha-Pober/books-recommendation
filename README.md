@@ -122,13 +122,14 @@ ASP.NET Core Identity stores the accounts. The API is stateless and uses JWT bea
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/auth/register` | Creates a `Customer` account and returns tokens |
-| `POST /api/auth/login` | Returns an access token (JWT, 15 min) and a refresh token (14 days) |
-| `POST /api/auth/refresh` | Exchanges a refresh token for a new pair |
-| `POST /api/auth/logout` | Revokes the refresh token |
+| `POST /api/auth/register` | Creates a `Customer` account and signs it in |
+| `POST /api/auth/login` | Returns an access token (JWT, 15 min) and sets the refresh token cookie (14 days) |
+| `POST /api/auth/refresh` | Exchanges the refresh token cookie for a new access token and cookie |
+| `POST /api/auth/logout` | Revokes the refresh token and deletes the cookie |
 | `GET /api/auth/me` | Returns the current user |
 
-- **Refresh tokens are single-use.** Only their SHA-256 hash is stored. If an already used token is presented again, every session of that user is revoked, because the token was probably stolen.
+- **The refresh token is only in a cookie:** `bookstore_refresh`, HttpOnly, `SameSite=Strict`, `Path=/api/auth`. Page scripts can't read it, so an XSS can't steal a long-lived session, and other sites can't make the browser send it. The response body carries only the access token, which the frontend keeps in memory.
+- **Refresh tokens are single-use.** Only their SHA-256 hash is stored. If an already used token is presented again, every session of that user is revoked, because the token was probably stolen. A rejected refresh also deletes the cookie.
 - **Login protection:** an account is locked for 15 minutes after 5 failed passwords. The auth endpoints are also limited to 20 requests per minute per IP.
 - **Roles:**
   - guests (no token) can browse, record events and get recommendations;
@@ -212,6 +213,13 @@ An Angular 22 SPA: standalone components, signals, zoneless change detection, An
   npm run api:types    # regenerates src/app/api/schema.ts
   ```
 - **Behind nginx:** the API reads the client address from `X-Forwarded-For`, trusted only from `ReverseProxy:TrustedNetworks`, so the per-IP rate limits apply per user and not to nginx.
+
+**Signing in** (`src/app/core/auth`):
+- `AuthService` holds the user (a signal) and the access token, in memory only. On page load it restores the session with `/api/auth/refresh`. It only tries when `localStorage` says this browser has signed in, which is a hint, not a secret, so guests make no extra request.
+- `authInterceptor` adds `Authorization: Bearer …` to `/api` requests, refreshing a token that's about to expire first. If the API still answers 401, it refreshes once and retries.
+- **One refresh at a time:** refresh tokens are single-use and every tab shares the cookie, so two tabs refreshing at once would look like token theft and sign the user out everywhere. Refreshes are therefore serialized across tabs with a Web Lock, and concurrent requests within a tab share one refresh. Sign-in and sign-out reach other tabs through a `BroadcastChannel`.
+- **Guards:** `authGuard` sends guests to `/login?returnUrl=…`; `roleGuard(...)` checks roles; `guestOnlyGuard` keeps signed-in users off the sign-in pages. Return links must stay inside the app.
+- **Pages:** `/login`, `/register` (the password checklist mirrors Identity's rules), `/account`.
 
 **Running locally.** Node is managed with [fnm](https://github.com/Schniz/fnm); the version is in `.node-version`.
 

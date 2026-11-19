@@ -9,3 +9,15 @@ export type GenreDto = Schemas['GenreDto'];
 export type PagedBooks = Schemas['PagedResultOfBookDto'];
 export type RecommendationList = Schemas['RecommendationListDto'];
 export type RecommendedBook = Schemas['RecommendedBookDto'];
+export type UserDto = Schemas['UserDto'];
+export type SessionResponse = Schemas['SessionResponse'];
+export type LoginRequest = Schemas['LoginRequest'];
+export type RegisterRequest = Schemas['RegisterRequest'];
+
+/** RFC 7807 error body returned by the API (`detail` is safe to show for 4xx; `errors` for model validation). */
+export interface ProblemDetails {
+  status?: number;
+  title?: string;
+  detail?: string;
+  errors?: Record<string, string[]>;
+}
