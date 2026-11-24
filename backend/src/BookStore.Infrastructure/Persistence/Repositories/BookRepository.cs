@@ -11,8 +11,6 @@ namespace BookStore.Infrastructure.Persistence.Repositories;
 
 internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
 {
-    private const string LikeEscapeCharacter = "\\";
-
     // "Similar books" (metadata fallback): genres up to this size contribute all their books as candidates,
     // larger ones their most rated books.
     private const int SmallGenreSize = 2000;
@@ -97,14 +95,16 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
         // title (trigram GIN on title, e.g. «дюн»), an author's name (trigram GIN on authors.full_name). As one
         // OR condition PostgreSQL can't use the indexes and checks every book; as a union of matching ids it can.
         // websearch_to_tsquery must be written inline in each lambda: as a local variable EF can't translate it.
-        var pattern = $"%{EscapeLikePattern(search)}%";
+        var pattern = LikePattern.Contains(search);
         var matching = db.Books
             .Where(b => EF.Property<NpgsqlTsVector>(b, BookConfiguration.SearchVector)
                 .Matches(EF.Functions.WebSearchToTsQuery(BookStoreDbContext.TextSearchConfig, search)))
             .Select(b => b.Id)
-            .Union(db.Books.Where(b => EF.Functions.ILike(b.Title, pattern, LikeEscapeCharacter)).Select(b => b.Id))
+            .Union(db.Books
+                .Where(b => EF.Functions.ILike(b.Title, pattern, LikePattern.EscapeCharacter))
+                .Select(b => b.Id))
             .Union(db.Authors
-                .Where(a => EF.Functions.ILike(a.FullName, pattern, LikeEscapeCharacter))
+                .Where(a => EF.Functions.ILike(a.FullName, pattern, LikePattern.EscapeCharacter))
                 .SelectMany(a => a.Books.Select(b => b.Id)));
         books = books.Where(b => matching.Contains(b.Id));
 
@@ -141,9 +141,6 @@ internal sealed class BookRepository(BookStoreDbContext db) : IBookRepository
             .ThenBy(b => b.Id),
         _ => books.OrderBy(b => b.Title).ThenBy(b => b.Id),
     };
-
-    private static string EscapeLikePattern(string value) =>
-        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     public Task<Book?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         ReadOnlyWithDetails.FirstOrDefaultAsync(b => b.Id == id, cancellationToken);

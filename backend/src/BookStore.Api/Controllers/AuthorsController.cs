@@ -10,8 +10,8 @@ namespace BookStore.Api.Controllers;
 public sealed class AuthorsController(IAuthorService authors) : ControllerBase
 {
     [HttpGet]
-    public Task<PagedResult<AuthorDto>> GetAll([FromQuery] PageQuery page, CancellationToken cancellationToken) =>
-        authors.GetAllAsync(page, cancellationToken);
+    public Task<PagedResult<AuthorDto>> GetAll([FromQuery] AuthorQuery query, CancellationToken cancellationToken) =>
+        authors.GetAllAsync(query, cancellationToken);
 
     [HttpGet("{id:guid}")]
     public Task<AuthorDto> GetById(Guid id, CancellationToken cancellationToken) =>

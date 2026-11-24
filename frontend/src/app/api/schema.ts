@@ -562,6 +562,7 @@ export interface paths {
     get: {
       parameters: {
         query?: {
+          Search?: string;
           Page?: number;
           PageSize?: number;
         };

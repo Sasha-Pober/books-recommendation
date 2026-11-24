@@ -18,6 +18,8 @@ import { Router, RouterLink } from '@angular/router';
 
 import type { BookDto, RecommendationList } from '../../api/models';
 import { languageName } from '../../catalog/catalog-reference';
+import { AuthService } from '../../core/auth/auth.service';
+import { Role } from '../../core/auth/roles';
 import { InteractionEvents } from '../../core/events/interaction-events';
 import { SILENT_ERRORS } from '../../core/http/error.interceptor';
 import { BookCover } from '../../shared/book-cover/book-cover';
@@ -54,6 +56,9 @@ export class BookPage {
   private readonly events = inject(InteractionEvents);
   private readonly title = inject(Title);
   protected readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  /** Managers and admins get a link to the book's edit form. */
+  protected readonly canEdit = computed(() => this.auth.hasRole(Role.Manager, Role.Admin));
 
   /** The :id route parameter. */
   readonly id = input.required<string>();

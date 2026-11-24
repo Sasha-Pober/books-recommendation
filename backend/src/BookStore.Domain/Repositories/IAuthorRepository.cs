@@ -5,7 +5,9 @@ namespace BookStore.Domain.Repositories;
 
 public interface IAuthorRepository
 {
-    Task<PagedList<Author>> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken);
+    /// <param name="search">A part of the name, case-insensitive; null for all authors.</param>
+    Task<PagedList<Author>> GetPageAsync(
+        string? search, int page, int pageSize, CancellationToken cancellationToken);
 
     Task<Author?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 

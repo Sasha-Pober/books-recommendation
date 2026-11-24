@@ -8,7 +8,7 @@ namespace BookStore.Services.Authors;
 
 public interface IAuthorService
 {
-    Task<PagedResult<AuthorDto>> GetAllAsync(PageQuery page, CancellationToken cancellationToken);
+    Task<PagedResult<AuthorDto>> GetAllAsync(AuthorQuery query, CancellationToken cancellationToken);
 
     Task<AuthorDto> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
@@ -17,9 +17,10 @@ public interface IAuthorService
 
 internal sealed class AuthorService(IAuthorRepository authors, IUnitOfWork unitOfWork) : IAuthorService
 {
-    public async Task<PagedResult<AuthorDto>> GetAllAsync(PageQuery page, CancellationToken cancellationToken)
+    public async Task<PagedResult<AuthorDto>> GetAllAsync(AuthorQuery query, CancellationToken cancellationToken)
     {
-        var result = await authors.GetPageAsync(page.Page, page.PageSize, cancellationToken);
+        var search = string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim();
+        var result = await authors.GetPageAsync(search, query.Page, query.PageSize, cancellationToken);
 
         return new PagedResult<AuthorDto>(
             result.Items.Select(ToDto).ToList(), result.Page, result.PageSize, result.TotalCount);

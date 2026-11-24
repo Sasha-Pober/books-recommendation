@@ -126,6 +126,20 @@ public class CatalogSearchTests(PostgresFixture fixture) : PostgresTest(fixture)
             result.Items.Select(i => i.Title));
     }
 
+    [Theory]
+    [InlineData("жАДа", new[] { "Сергій Жадан" })]   // part of the name, any case
+    [InlineData("р", new[] { "Валер'ян Підмогильний", "Сергій Жадан", "Френк Герберт" })]
+    [InlineData("100%", new string[0])]             // % is matched literally, not as a wildcard
+    public async Task AuthorSearch_MatchesPartOfTheName(string search, string[] expected)
+    {
+        await SeedCatalogAsync();
+        await using var db = Fixture.CreateDbContext();
+
+        var result = await new AuthorRepository(db).GetPageAsync(search, 1, 20, CancellationToken.None);
+
+        Assert.Equal(expected, result.Items.Select(a => a.FullName));
+    }
+
     private async Task<IReadOnlyList<string>> SearchTitlesAsync(string search)
     {
         await using var db = Fixture.CreateDbContext();

@@ -66,4 +66,9 @@ export class CatalogReference {
 
   readonly genreOptions = computed(() => genreOptions(this.genres.value()));
   readonly genreNames = computed(() => new Map(this.genres.value().map((g) => [g.id, g.name])));
+
+  /** After a genre is added (book management). */
+  reloadGenres(): void {
+    this.genres.reload();
+  }
 }

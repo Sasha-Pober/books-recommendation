@@ -5,7 +5,7 @@ A book store with a neural-network-based recommendation system.
 | Part | Tech | Status |
 |---|---|---|
 | `backend/` | C# / ASP.NET Core 10, EF Core, PostgreSQL, Redis | ✅ store API, unit + integration tests |
-| `frontend/` | TypeScript / Angular 22 / Angular Material | ✅ store: sign-in, catalog, book page, recommendations, cart, orders, ratings; 🚧 admin |
+| `frontend/` | TypeScript / Angular 22 / Angular Material | ✅ store: sign-in, catalog, book page, recommendations, cart, orders, ratings; ✅ admin: books, model versions |
 | `recsys/` | Python / FastAPI / Keras 3 (PyTorch backend) recommendation service | ✅ data import, training, model import, inference; awaiting the first trained model |
 
 ## Backend architecture
@@ -76,7 +76,7 @@ What makes it fast:
 - **Rating:** `books.rating_count` and `rating_sum` hold the counters, kept in the same transaction as every rating. The `CatalogPerformance` migration backfilled them, and `recsys import-goodreads` recomputes them. Book cards read them too, so a page needs no rating query.
 - **Ukrainian dictionary:** PostgreSQL loads it per connection on first use, which takes ~0.5 s and ~64 MB of memory per connection. Every new connection loads it as it opens, and at startup the API opens `Minimum Pool Size` connections (4 in development and Compose), which the pool then keeps. So no user search waits for it. Above that number, a new connection pays the ~0.5 s when it opens.
 
-Reference lists for the filters: `GET /api/genres` (flat, with `parentId`), `/api/authors`, `/api/publishers`, `/api/series`.
+Reference lists for the filters: `GET /api/genres` (flat, with `parentId`), `/api/authors`, `/api/publishers`, `/api/series`. `/api/authors?search=` matches part of the name, case-insensitive (trigram index); the book form's author autocomplete uses it.
 
 Catalog management needs the `Manager` or `Admin` role:
 - `POST/PUT/DELETE /api/admin/books`;
@@ -247,6 +247,11 @@ An Angular 22 SPA: standalone components, signals, zoneless change detection, An
 - **`/orders` and `/orders/:id`:** order history with statuses, and each order at the prices paid.
 - **Ratings and reviews** (`BookReviews` on the book page): customers rate 1–5 stars with an optional review. `GET /api/books/{id}/ratings/mine` fills in their earlier rating so they can change it, and saving reloads the book's average. The list shows only written reviews (`GET /api/books/{id}/ratings?withTextOnly=true`), 5 at a time: the imported Goodreads ratings are scores only.
 - **Events:** the server records the cart, wishlist, purchase and rating events itself, so the frontend reports only views.
+
+**Management** (`src/app/admin`, `src/app/pages/admin`; the menu under the account name):
+- **`/admin/books`** (`Manager`, `Admin`): every book, out-of-stock ones included, newest first, with search. Deleting asks for confirmation. A book that has been ordered can't be deleted (409), and the page says to set its stock to 0 instead.
+- **`/admin/books/new` and `/admin/books/:id/edit`:** the book form. Authors are chips with an autocomplete (`/api/authors?search=`), and «Додати автора «…»» creates a missing one. Genres (as a tree), publisher and series are selects, each with a button that creates a new entry in a dialog. Saving opens the book page. A new book reaches recommendations within the recommendation service's catalog refresh (5 min by default), scored by its content (cold start), so the form asks for a full annotation. The book page has «Редагувати» for managers and admins.
+- **`/admin/models`** (`Admin`): imported model versions, newest first. Each card shows the hybrid model's test NDCG@10, Recall@10, HR@10, Coverage@10 and cold-start NDCG@10, with the difference from the active version, plus the epochs and training time from `training_curve`. «Порівняння з базовими моделями» shows the same metrics, plus MRR, ILD and Novelty, for popularity, TF-IDF and matrix factorization, with the best value in each column in bold. «Активувати» calls `POST /api/admin/models/{id}/activate`. On 503 (the service is down or couldn't load the model) the page says the active version didn't change. `model-metrics.ts` reads `metrics.json` defensively: missing values show as «—».
 
 **Running locally.** Node is managed with [fnm](https://github.com/Schniz/fnm); the version is in `.node-version`.
 

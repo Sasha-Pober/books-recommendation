@@ -1,5 +1,10 @@
 <nav class="back">
   <a mat-button routerLink="/catalog"><mat-icon>arrow_back</mat-icon> Каталог</a>
+  @if (canEdit() && current(); as b) {
+    <a mat-stroked-button class="edit" [routerLink]="['/admin/books', b.id, 'edit']">
+      <mat-icon>edit</mat-icon> Редагувати
+    </a>
+  }
 </nav>
 
 @if (notFound()) {

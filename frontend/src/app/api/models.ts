@@ -35,3 +35,6 @@ export type OrderStatus = Schemas['OrderStatus'];
 export type PagedOrders = Schemas['PagedResultOfOrderDto'];
 export type ReviewDto = Schemas['ReviewDto'];
 export type PagedReviews = Schemas['PagedResultOfReviewDto'];
+export type PagedAuthors = Schemas['PagedResultOfAuthorDto'];
+export type UpsertBookRequest = Schemas['UpsertBookRequest'];
+export type ModelVersionDto = Schemas['ModelVersionDto'];

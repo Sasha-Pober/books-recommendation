@@ -7,12 +7,21 @@ namespace BookStore.Infrastructure.Persistence.Repositories;
 
 internal sealed class AuthorRepository(BookStoreDbContext db) : IAuthorRepository
 {
-    public Task<PagedList<Author>> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken) =>
-        db.Authors
-            .AsNoTracking()
+    public Task<PagedList<Author>> GetPageAsync(
+        string? search, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var authors = db.Authors.AsNoTracking();
+        if (search is not null)
+        {
+            var pattern = LikePattern.Contains(search);
+            authors = authors.Where(a => EF.Functions.ILike(a.FullName, pattern, LikePattern.EscapeCharacter));
+        }
+
+        return authors
             .OrderBy(a => a.FullName)
             .ThenBy(a => a.Id)
             .ToPagedListAsync(page, pageSize, cancellationToken);
+    }
 
     public Task<Author?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         db.Authors.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);

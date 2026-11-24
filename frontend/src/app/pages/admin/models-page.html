@@ -1,0 +1,149 @@
+<h1>Моделі рекомендацій</h1>
+<p class="intro">
+  Моделі навчаються офлайн (<code>recsys train</code>) і додаються командою
+  <code>recsys import-model</code>, яка сама активує нову версію, якщо в неї вищий тестовий NDCG@10.
+  Тут можна переглянути метрики кожної версії й вручну перемкнути активну. Рекомендаційний сервіс
+  перевіряє активну версію кожні 30 с.
+</p>
+
+@if (models.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Завантаження" />
+}
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+@if (models.error() && !models.isLoading()) {
+  <div class="empty" role="alert">
+    <mat-icon>cloud_off</mat-icon>
+    <p>Не вдалося завантажити версії моделей.</p>
+    <button mat-flat-button (click)="models.reload()">Спробувати ще раз</button>
+  </div>
+} @else if (models.hasValue()) {
+  @if (!versions().length) {
+    <div class="empty">
+      <mat-icon>model_training</mat-icon>
+      <p>Ще немає імпортованих моделей.</p>
+      <span
+        >Поки моделі немає, магазин показує неперсоналізовані добірки (бестселери, новинки). Навчіть
+        модель і імпортуйте її: <code>recsys import-model &lt;bundle&gt;</code>.</span
+      >
+    </div>
+  } @else {
+    @if (!active()) {
+      <p class="warning" role="status">
+        <mat-icon aria-hidden="true">warning</mat-icon>
+        Жодна версія не активна — покупці бачать лише неперсоналізовані добірки.
+      </p>
+    }
+
+    <ul class="versions">
+      @for (version of versions(); track version.model.id) {
+        <li class="version" [class.is-active]="version.model.isActive">
+          <header>
+            <div>
+              <h2>
+                {{ version.model.name }}
+                @if (version.model.isActive) {
+                  <span class="badge"
+                    ><mat-icon aria-hidden="true">check_circle</mat-icon> Активна</span
+                  >
+                }
+              </h2>
+              <p class="meta">
+                Навчено {{ version.model.trainedAt | date: 'd MMMM y, HH:mm' }}
+                @if (version.training; as t) {
+                  · {{ t.epochs }} еп.
+                  @if (t.bestEpoch) {
+                    (найкраща — {{ t.bestEpoch }})
+                  }
+                  @if (t.minutes !== null) {
+                    · {{ t.minutes }} хв
+                  }
+                }
+                @if (version.users) {
+                  · тест на {{ version.users }} користувачах
+                }
+              </p>
+            </div>
+            @if (!version.model.isActive) {
+              <button
+                mat-flat-button
+                class="activate"
+                [disabled]="activating() !== null"
+                (click)="activate(version.model)"
+              >
+                @if (activating() === version.model.id) {
+                  <mat-spinner diameter="20" aria-label="Активація…" />
+                } @else {
+                  Активувати
+                }
+              </button>
+            }
+          </header>
+
+          @if (version.rows.length) {
+            <dl class="headline">
+              @for (item of version.headline; track item.label) {
+                <div [matTooltip]="item.description">
+                  <dt>{{ item.label }}</dt>
+                  <dd>
+                    {{ item.value }}
+                    @if (item.delta !== null) {
+                      <span
+                        class="delta"
+                        [class.up]="item.delta > 0"
+                        [class.down]="item.delta < 0"
+                        [attr.aria-label]="'порівняно з активною: ' + deltaLabel(item.delta)"
+                        >{{ deltaLabel(item.delta) }}</span
+                      >
+                    }
+                  </dd>
+                </div>
+              }
+            </dl>
+
+            @if (version.rows.length > 1) {
+              <mat-expansion-panel class="comparison">
+                <mat-expansion-panel-header>
+                  <mat-panel-title>Порівняння з базовими моделями</mat-panel-title>
+                </mat-expansion-panel-header>
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Модель</th>
+                        @for (column of columns; track $index) {
+                          <th class="num" [matTooltip]="column.description">{{ column.label }}</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of version.rows; track row.key; let r = $index) {
+                        <tr [class.served]="row.key === 'hybrid'">
+                          <th scope="row">{{ row.label }}</th>
+                          @for (value of row.values; track $index; let c = $index) {
+                            <td class="num" [class.best]="version.best[c] === r">
+                              {{ format(value, columns[c].digits) }}
+                            </td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <p class="note">
+                  Ранжування по всьому каталогу, тестовий період (за часом). Жирним — найкраще
+                  значення в стовпці. «Нові книги» — книги, що зʼявились у тестовому періоді
+                  (холодний старт).
+                </p>
+              </mat-expansion-panel>
+            }
+          } @else {
+            <p class="meta">Метрики для цієї версії відсутні.</p>
+          }
+        </li>
+      }
+    </ul>
+  }
+}

@@ -1,0 +1,235 @@
+<nav class="back">
+  <a mat-button routerLink="/admin/books"><mat-icon>arrow_back</mat-icon> Керування книгами</a>
+</nav>
+
+@if (notFound()) {
+  <div class="message">
+    <mat-icon>menu_book</mat-icon>
+    <h1>Книгу не знайдено</h1>
+    <p>Можливо, її вже видалили.</p>
+    <a mat-flat-button routerLink="/admin/books">До списку книг</a>
+  </div>
+} @else if (book.error() && !book.isLoading()) {
+  <div class="message" role="alert">
+    <mat-icon>cloud_off</mat-icon>
+    <p>Не вдалося завантажити книгу.</p>
+    <button mat-flat-button (click)="book.reload()">Спробувати ще раз</button>
+  </div>
+} @else if (book.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Завантаження" />
+} @else {
+  <h1>{{ isNew() ? 'Нова книга' : 'Редагування книги' }}</h1>
+
+  @if (isNew()) {
+    <p class="hint">
+      <mat-icon aria-hidden="true">auto_awesome</mat-icon>
+      <span>
+        Нова книга потрапить у рекомендації за кілька хвилин, ще до перших продажів: модель оцінює
+        її за назвою, анотацією, авторами й жанрами. Що повніше заповнені ці поля, то точніші
+        рекомендації.
+      </span>
+    </p>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <section>
+      <h2>Основне</h2>
+      <mat-form-field appearance="outline" class="wide">
+        <mat-label>Назва</mat-label>
+        <input matInput formControlName="title" required />
+        @if (form.controls.title.hasError('required')) {
+          <mat-error>Введіть назву</mat-error>
+        } @else if (form.controls.title.hasError('maxlength')) {
+          <mat-error>Не довше 300 символів</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field
+        appearance="outline"
+        class="wide"
+        [class.invalid]="authorsTouched() && !authors().length"
+      >
+        <mat-label>Автори</mat-label>
+        <mat-chip-grid #authorChips aria-label="Автори книги">
+          @for (author of authors(); track author.id) {
+            <mat-chip-row (removed)="removeAuthor(author)">
+              {{ author.fullName }}
+              <button matChipRemove [attr.aria-label]="'Прибрати автора ' + author.fullName">
+                <mat-icon>cancel</mat-icon>
+              </button>
+            </mat-chip-row>
+          }
+          <input
+            #authorInput
+            placeholder="Почніть вводити імʼя…"
+            [matChipInputFor]="authorChips"
+            [matAutocomplete]="authorAuto"
+            (input)="authorQuery.set(authorInput.value)"
+            (blur)="authorsTouched.set(true)"
+          />
+        </mat-chip-grid>
+        <mat-autocomplete
+          #authorAuto="matAutocomplete"
+          (optionSelected)="addAuthor($event, authorInput)"
+        >
+          @for (author of authorSuggestions(); track author.id) {
+            <mat-option [value]="author">{{ author.fullName }}</mat-option>
+          }
+          @if (authorQuery().trim().length >= 2) {
+            <mat-option class="create" [value]="authorQuery().trim()">
+              <mat-icon>person_add</mat-icon> Додати автора «{{ authorQuery().trim() }}»
+            </mat-option>
+          }
+        </mat-autocomplete>
+        <mat-hint>Щонайменше один. Немає в списку — додайте нового.</mat-hint>
+      </mat-form-field>
+      @if (authorsTouched() && !authors().length) {
+        <p class="field-error" role="alert">Додайте хоча б одного автора</p>
+      }
+
+      <mat-form-field appearance="outline" class="wide">
+        <mat-label>Анотація</mat-label>
+        <textarea matInput formControlName="annotation" rows="8"></textarea>
+        <mat-hint align="end">{{ form.controls.annotation.value.length }} / 10000</mat-hint>
+        @if (form.controls.annotation.hasError('maxlength')) {
+          <mat-error>Не довше 10000 символів</mat-error>
+        }
+      </mat-form-field>
+    </section>
+
+    <section>
+      <h2>Класифікація</h2>
+      <div class="with-action">
+        <mat-form-field appearance="outline">
+          <mat-label>Жанри</mat-label>
+          <mat-select formControlName="genreIds" multiple>
+            @for (option of reference.genreOptions(); track option.id) {
+              <mat-option [value]="option.id" [style.padding-left.px]="16 + option.depth * 20">
+                {{ option.name }}
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-stroked-button type="button" (click)="newGenre()">
+          <mat-icon>add</mat-icon> Жанр
+        </button>
+      </div>
+
+      <div class="with-action">
+        <mat-form-field appearance="outline">
+          <mat-label>Видавництво</mat-label>
+          <mat-select formControlName="publisherId">
+            <mat-option [value]="null">— Не вказано —</mat-option>
+            @for (publisher of publishers.value(); track publisher.id) {
+              <mat-option [value]="publisher.id">{{ publisher.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-stroked-button type="button" (click)="newPublisher()">
+          <mat-icon>add</mat-icon> Видавництво
+        </button>
+      </div>
+
+      <div class="with-action">
+        <mat-form-field appearance="outline">
+          <mat-label>Серія</mat-label>
+          <mat-select formControlName="seriesId">
+            <mat-option [value]="null">— Не вказано —</mat-option>
+            @for (item of series.value(); track item.id) {
+              <mat-option [value]="item.id">{{ item.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-stroked-button type="button" (click)="newSeries()">
+          <mat-icon>add</mat-icon> Серія
+        </button>
+      </div>
+
+      <div class="row">
+        <mat-form-field appearance="outline">
+          <mat-label>Мова</mat-label>
+          <mat-select formControlName="language">
+            <mat-option [value]="null">— Не вказано —</mat-option>
+            @for (language of languages(); track language.code) {
+              <mat-option [value]="language.code">{{ language.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Рік видання</mat-label>
+          <input matInput type="number" formControlName="year" min="0" max="2100" />
+          @if (form.controls.year.invalid) {
+            <mat-error>Від 0 до 2100</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Сторінок</mat-label>
+          <input matInput type="number" formControlName="pages" min="1" />
+          @if (form.controls.pages.invalid) {
+            <mat-error>Від 1 до 100000</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <div class="row">
+        <mat-form-field appearance="outline">
+          <mat-label>ISBN</mat-label>
+          <input matInput formControlName="isbn" placeholder="978-617-…" />
+          @if (form.controls.isbn.invalid) {
+            <mat-error>ISBN-10 або ISBN-13</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="grow">
+          <mat-label>Посилання на обкладинку</mat-label>
+          <input matInput type="url" formControlName="coverImageUrl" placeholder="https://…" />
+          @if (form.controls.coverImageUrl.invalid) {
+            <mat-error>Адреса має починатися з http:// або https://</mat-error>
+          }
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section>
+      <h2>Продаж</h2>
+      <div class="row">
+        <mat-form-field appearance="outline">
+          <mat-label>Ціна</mat-label>
+          <input matInput type="number" formControlName="price" min="0" step="0.01" required />
+          <span matTextSuffix>&nbsp;₴</span>
+          @if (form.controls.price.hasError('required')) {
+            <mat-error>Вкажіть ціну</mat-error>
+          } @else if (form.controls.price.invalid) {
+            <mat-error>Від 0 до 100000</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Кількість на складі</mat-label>
+          <input matInput type="number" formControlName="stock" min="0" step="1" required />
+          <mat-hint>0 — знято з продажу</mat-hint>
+          @if (form.controls.stock.invalid) {
+            <mat-error>Ціле число від 0</mat-error>
+          }
+        </mat-form-field>
+      </div>
+    </section>
+
+    @if (error(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+
+    <div class="actions">
+      <a mat-button [routerLink]="isNew() ? '/admin/books' : ['/books', id()]">Скасувати</a>
+      <button mat-flat-button type="submit" [disabled]="saving()">
+        @if (saving()) {
+          <mat-spinner diameter="20" aria-label="Збереження…" />
+        } @else {
+          {{ isNew() ? 'Додати книгу' : 'Зберегти зміни' }}
+        }
+      </button>
+    </div>
+  </form>
+}

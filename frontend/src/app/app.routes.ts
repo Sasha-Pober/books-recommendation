@@ -62,6 +62,30 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/orders/order-page').then((m) => m.OrderPage),
   },
   {
+    path: 'admin/books',
+    title: 'Керування книгами — Книгарня',
+    canActivate: [roleGuard(Role.Manager, Role.Admin)],
+    loadComponent: () => import('./pages/admin/admin-books-page').then((m) => m.AdminBooksPage),
+  },
+  {
+    path: 'admin/books/new',
+    title: 'Нова книга — Книгарня',
+    canActivate: [roleGuard(Role.Manager, Role.Admin)],
+    loadComponent: () => import('./pages/admin/book-form-page').then((m) => m.BookFormPage),
+  },
+  {
+    path: 'admin/books/:id/edit',
+    title: 'Редагування книги — Книгарня',
+    canActivate: [roleGuard(Role.Manager, Role.Admin)],
+    loadComponent: () => import('./pages/admin/book-form-page').then((m) => m.BookFormPage),
+  },
+  {
+    path: 'admin/models',
+    title: 'Моделі рекомендацій — Книгарня',
+    canActivate: [roleGuard(Role.Admin)],
+    loadComponent: () => import('./pages/admin/models-page').then((m) => m.ModelsPage),
+  },
+  {
     path: '**',
     title: 'Сторінку не знайдено — Книгарня',
     loadComponent: () => import('./pages/not-found/not-found-page').then((m) => m.NotFoundPage),

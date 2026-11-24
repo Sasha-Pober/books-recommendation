@@ -66,6 +66,22 @@
               <span>Список бажань</span>
             </a>
           }
+          @if (canManageBooks() || canManageModels()) {
+            <mat-divider />
+            @if (canManageBooks()) {
+              <a mat-menu-item routerLink="/admin/books">
+                <mat-icon>edit_note</mat-icon>
+                <span>Керування книгами</span>
+              </a>
+            }
+            @if (canManageModels()) {
+              <a mat-menu-item routerLink="/admin/models">
+                <mat-icon>model_training</mat-icon>
+                <span>Моделі рекомендацій</span>
+              </a>
+            }
+            <mat-divider />
+          }
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
             <span>Вийти</span>
