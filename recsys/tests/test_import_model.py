@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from recsys import model_versions
-from recsys.model.importer import Activation, _should_activate, _unpack
+from recsys.model.importer import Activation, _should_activate, _unpack, check_catalog
 from tests.test_serving import version
 
 
@@ -65,3 +65,11 @@ def test_auto_activation_only_for_a_better_model(
     assert _should_activate(None, Activation.AUTO, metrics(new_ndcg)) is expected
     assert _should_activate(None, Activation.YES, metrics(0.0)) is True
     assert _should_activate(None, Activation.NO, metrics(1.0)) is False
+
+
+def test_refuses_a_model_whose_books_are_mostly_not_in_the_store() -> None:
+    with pytest.raises(ValueError, match="import-goodreads"):
+        check_catalog(missing=36131, total=36131, allow_missing_books=False)
+
+    check_catalog(missing=36131, total=36131, allow_missing_books=True)
+    check_catalog(missing=100, total=36131, allow_missing_books=False)  # a few deleted books are fine

@@ -11,7 +11,9 @@ def test_service_modules_select_the_pytorch_backend_by_themselves() -> None:
     env = {k: v for k, v in os.environ.items() if k != "KERAS_BACKEND"}
     code = "import recsys.inference, keras; print(keras.backend.backend())"
 
-    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=300)
+    result = subprocess.run(
+        [sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=300
+    )
 
     assert result.returncode == 0, result.stderr[-2000:]
     assert result.stdout.strip().splitlines()[-1] == "torch"

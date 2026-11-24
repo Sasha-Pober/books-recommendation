@@ -53,6 +53,11 @@ def main(argv: list[str] | None = None) -> None:
         default="auto",
         help="auto: only if there is no active model or the new one has a higher test NDCG@10",
     )
+    importing.add_argument(
+        "--allow-missing-books",
+        action="store_true",
+        help="import even if most of the model's books are not in the store (normally a wrong database)",
+    )
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -84,7 +89,13 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "import-model":
         from recsys.model.importer import Activation, import_model
 
-        import_model(settings.database_url, args.source, settings.models_dir, Activation(args.activate))
+        import_model(
+            settings.database_url,
+            args.source,
+            settings.models_dir,
+            Activation(args.activate),
+            args.allow_missing_books,
+        )
     elif args.command == "export-dataset":
         from recsys.dataset.export import export_dataset
 

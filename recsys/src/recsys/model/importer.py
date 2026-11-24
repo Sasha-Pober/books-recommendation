@@ -17,6 +17,10 @@ from recsys.model.bundle import load_bundle
 
 logger = logging.getLogger(__name__)
 
+# More of the model's books missing from the store than this means the store is not the catalog the model was
+# trained on (e.g. a fresh database with only the demo seed): the model would recommend nothing useful.
+MAX_MISSING_SHARE = 0.5
+
 
 class Activation(StrEnum):
     AUTO = "auto"  # if there is no active model, or the new one has a higher test NDCG@10
@@ -24,9 +28,16 @@ class Activation(StrEnum):
     NO = "no"
 
 
-def import_model(database_url: str, source: Path, models_dir: Path, activation: Activation) -> int:
+def import_model(
+    database_url: str,
+    source: Path,
+    models_dir: Path,
+    activation: Activation,
+    allow_missing_books: bool = False,
+) -> int:
     """Copies the bundle to <models_dir>/<name>/, writes model_versions and book_embeddings, may activate it.
-    Returns the new model_versions id."""
+    Returns the new model_versions id. Refuses a model whose books are mostly not in the store, unless
+    `allow_missing_books`."""
     with tempfile.TemporaryDirectory() as temporary:
         folder = _unpack(source, Path(temporary))
         bundle = load_bundle(folder)  # validates the format and that the weights load
@@ -41,6 +52,7 @@ def import_model(database_url: str, source: Path, models_dir: Path, activation: 
             known = {str(r[0]) for r in connection.execute("SELECT id FROM books").fetchall()}
             present = np.array([book_id in known for book_id in bundle.book_ids])
             missing = int((~present).sum())
+            check_catalog(missing, len(present), allow_missing_books)
             if missing:
                 logger.warning(
                     "%d of %d books of the model are no longer in the store", missing, len(present)
@@ -74,6 +86,15 @@ def import_model(database_url: str, source: Path, models_dir: Path, activation: 
         model_versions.test_ndcg(bundle.metrics),
     )  # fmt: skip
     return version_id
+
+
+def check_catalog(missing: int, total: int, allow_missing_books: bool) -> None:
+    if total and missing / total > MAX_MISSING_SHARE and not allow_missing_books:
+        raise ValueError(
+            f"{missing} of {total} books of the model are not in the store: this database is not the catalog "
+            "the model was trained on (was the database recreated? run `recsys import-goodreads` first). "
+            "Use --allow-missing-books to import anyway."
+        )
 
 
 def _unpack(source: Path, temporary: Path) -> Path:

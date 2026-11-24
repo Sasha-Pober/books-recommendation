@@ -75,8 +75,17 @@ def build_histories(
 
 
 def _grouped(frame: pd.DataFrame, users: np.ndarray) -> list[np.ndarray]:
-    groups = frame.groupby("user")["item"].agg(lambda s: s.to_numpy())
-    return [groups.get(u, np.empty(0, dtype=np.int64)) for u in users]
+    """Each user's items, in the frame's order. Plain NumPy: pandas 2.x rejects arrays as `agg` results
+    ("Must produce aggregated value"), and Kaggle's pandas may be older than ours."""
+    empty = np.empty(0, dtype=np.int64)
+    if frame.empty:
+        return [empty for _ in users]
+    frame_users = frame["user"].to_numpy()
+    order = np.argsort(frame_users, kind="stable")
+    sorted_users, sorted_items = frame_users[order], frame["item"].to_numpy()[order]
+    keys, starts = np.unique(sorted_users, return_index=True)
+    groups = dict(zip(keys.tolist(), np.split(sorted_items, starts[1:]), strict=True))
+    return [groups.get(int(u), empty) for u in users]
 
 
 def build_training_data(
